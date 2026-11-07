@@ -44,7 +44,8 @@ The suite covers the economy, infection, settlers, carts, starvation, training, 
 | Right click | Move. On a nest or infected building: attack. On a tower: garrison. Shift+right-click: attack-move |
 | A, H, G, P | Attack-move, hold, garrison, patrol (with squads selected) |
 | Space, 1 / 2 / 3 | Pause (you can still give orders), then 1x / 2x / 4x |
-| B, C, L, R | Build, City, Logistics and Research panels |
+| B | Show or hide the build bar (Settlement, Industry and Military tabs along the bottom) |
+| C, L, R | City, Logistics and Research panels |
 | Tab | Cycle cities |
 | T, Y, V | Threat heatmap, region borders and vision overlays |
 | Del, Esc | Demolish the selected building; cancel or deselect |

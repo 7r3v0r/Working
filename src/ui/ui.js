@@ -6,13 +6,18 @@ import { regionThreat } from '../sim/zombies.js';
 import { TER_NAMES, DEP_NAMES } from '../sim/map.js';
 import { play, unlockAudio } from './audio.js';
 import { resIcon, costHtml } from './icons.js';
+import { buildingArt } from './buildingArt.js';
 
 const $ = id => document.getElementById(id);
 const fmt = v => Math.floor(v + 1e-6).toLocaleString();
 const mmss = s => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const ROADS = { road: { name: 'Dirt road', label: '', cat: 'road', color: '#9C8A68', line: true }, sroad: { name: 'Stone road', label: '', cat: 'road', color: '#B8B2A6', line: true, research: 'stoneRoads' } };
-const MENU_ORDER = ['Housing', 'Food', 'Materials', 'Storage', 'Industry', 'Weapons', 'Military', 'Defense', 'Roads'];
+const BB_TABS = [['civic', 'Settlement'], ['industry', 'Industry'], ['military', 'Military']];
+const EXTRA_DESC = {
+  road: 'Doubles movement speed for everyone, zombies included. Drawn across a river it becomes a bridge.',
+  sroad: 'Triples movement speed for everyone, zombies included.',
+};
 const TRAINABLE = ['peasant', 'sword', 'spear', 'archer', 'cav', 'scout'];
 
 // 4-connected line so walls never leave diagonal gaps.
@@ -34,7 +39,8 @@ export class UI {
     this.keys = new Set();
     this.mouse = { x: 0, y: 0, in: false, down: false, bx: 0, by: 0, mid: false };
     this.alerts = [];
-    this.timers = { top: 0, side: 0, sel: 0, alerts: 0 };
+    this.timers = { top: 0, side: 0, sel: 0, alerts: 0, bar: 0 };
+    this.bbTab = 'civic'; this.bbOpen = true; this.tipType = null;
     this.panel = null;
     this.lastHtml = {};
     this.reset();
@@ -79,6 +85,8 @@ export class UI {
     window.addEventListener('mousemove', e => { if (this.mmDrag) mmGo(e); });
     window.addEventListener('mouseup', () => { this.mmDrag = false; });
     document.addEventListener('click', e => this.onClick(e));
+    document.addEventListener('mouseover', e => { const c = e.target.closest && e.target.closest('.bb-card'); if (c) this.showTip(c.dataset.tip, c); });
+    document.addEventListener('mouseout', e => { const c = e.target.closest && e.target.closest('.bb-card'); if (c && !(e.relatedTarget && c.contains(e.relatedTarget))) this.hideTip(); });
     document.addEventListener('input', e => this.onInput(e));
     document.addEventListener('pointerdown', () => unlockAudio(), { once: false });
     $('save-btn').onclick = () => this.g.save();
@@ -105,7 +113,7 @@ export class UI {
       case '1': this.g.setSpeed(1); break;
       case '2': this.g.setSpeed(2); break;
       case '3': this.g.setSpeed(4); break;
-      case 'b': this.togglePanel('build'); break;
+      case 'b': this.toggleBar(); break;
       case 'c': this.togglePanel('city'); break;
       case 'l': this.togglePanel('logistics'); break;
       case 'r': this.togglePanel('research'); break;
@@ -239,6 +247,7 @@ export class UI {
     this.ghost = null;
     this.r.cv.style.cursor = m ? 'crosshair' : 'default';
     this.updateModeHint();
+    this.renderBuildBar();
   }
   updateModeHint() {
     const el = $('mode-hint'), m = this.mode;
@@ -323,13 +332,17 @@ export class UI {
     const b = w.bMap.get(this.sel.building);
     const res = r => { if (r && !r.ok && r.reason) this.flash(r.reason); this.lastHtml = {}; };
     switch (a) {
+      case 'bb-tab': this.bbTab = ds.tab; this.bbOpen = true; this.renderBuildBar(true); break;
+      case 'bb-toggle': this.toggleBar(); break;
       case 'place': {
         const type = ds.type;
+        if (t.classList.contains('locked')) { this.flash('Locked — research it first'); break; }
+        if (this.mode && this.mode.type === type) { this.setMode(null); break; }
         const line = ROADS[type] || w.BD[type].line;
         this.setMode(line ? { k: 'line', type, start: null } : { k: 'build', type });
         break;
       }
-      case 'found': this.setMode({ k: 'found' }); break;
+      case 'found': this.setMode(this.mode && this.mode.k === 'found' ? null : { k: 'found' }); break;
       case 'research': res(w.cmd({ t: 'research', id: ds.id })); break;
       case 'train': if (b) res(w.cmd({ t: 'train', b: b.id, k: ds.k, n: +ds.n })); break;
       case 'qcancel': if (b) res(w.cmd({ t: 'cancelTrain', b: b.id, i: +ds.i })); break;
@@ -406,13 +419,14 @@ export class UI {
 <kbd>P</kbd><span>Patrol</span>
 <kbd>Space</kbd><span>Pause (orders still work)</span>
 <kbd>1 2 3</kbd><span>Speed 1x / 2x / 4x</span>
-<kbd>B C L R</kbd><span>Build · City · Logistics · Research panels</span>
+<kbd>B</kbd><span>Show / hide the build bar</span>
+<kbd>C L R</kbd><span>City · Logistics · Research panels</span>
 <kbd>Tab</kbd><span>Cycle cities</span>
 <kbd>T Y V</kbd><span>Threat heatmap · region borders · vision overlays</span>
 <kbd>Del</kbd><span>Demolish selected building</span>
 <kbd>Esc</kbd><span>Cancel / deselect</span>
 </div>
-<p class="muted">Tips: build farms and houses first; set job priorities in the City panel; found settlements (City panel) to reach stone, ore and coal; link cities with roads and cart routes; research stone walls before the waves grow.</p>
+<p class="muted">Tips: build farms and houses first; set job priorities in the City panel; found settlements (Settlement tab) to reach stone, ore and coal; link cities with roads and cart routes; research stone walls before the waves grow.</p>
 <div class="actions"><button data-act="close-ov">Play</button><button data-act="newgame">New game</button><button data-act="load">Load save…</button></div>`);
   }
 
@@ -448,6 +462,7 @@ export class UI {
     if (now - this.timers.top > 200) { this.timers.top = now; this.renderTop(); this.renderBanner(); this.updateModeHint(); }
     if (now - this.timers.side > 400) { this.timers.side = now; this.renderSide(); }
     if (now - this.timers.sel > 250) { this.timers.sel = now; this.renderSel(); }
+    if (now - this.timers.bar > 300) { this.timers.bar = now; this.renderBuildBar(); }
     if (now - this.timers.alerts > 1000) { this.timers.alerts = now; this.renderAlerts(); }
     if (w.status.state !== 'playing' && !this.gameOverShown) {
       this.gameOverShown = true;
@@ -527,36 +542,96 @@ export class UI {
     el.hidden = false;
     if (force) this.lastHtml.side = null;
     let html = '';
-    if (this.panel === 'build') html = this.buildPanel();
-    else if (this.panel === 'city') html = this.cityPanel();
+    if (this.panel === 'city') html = this.cityPanel();
     else if (this.panel === 'logistics') html = this.logisticsPanel();
     else if (this.panel === 'research') html = this.researchPanel();
     this.setHtml('side', html);
   }
   head(t) { return `<h2><span>${t}</span><button class="close" data-act="close">✕</button></h2>`; }
 
-  buildPanel() {
-    const w = this.w, c = this.curCity(), CC = w.defs.buildings.categoryColors;
-    const groups = {};
-    for (const [k, d] of Object.entries(w.BD)) { if (!d.menu) continue; (groups[d.menu] = groups[d.menu] || []).push([k, d]); }
-    groups.Roads = Object.entries(ROADS);
-    if (c && !c.hall) (groups.Housing = groups.Housing || []).unshift(['townhall', w.BD.townhall]);
-    let html = this.head(`Build · ${c ? esc(c.name) : ''}`);
-    html += `<p class="muted">Buildings go within ${w.B.city.buildRadius} tiles of a town centre (defenses ${w.B.city.defenseRadius}). Costs come from that city's stockpile.</p>`;
-    for (const g of MENU_ORDER) {
-      if (!groups[g]) continue;
-      html += `<h3>${g}</h3><div class="grid">`;
-      for (const [k, d] of groups[g]) {
-        const locked = d.research && !w.has(d.research);
-        const cost = ROADS[k] ? (k === 'sroad' ? w.B.roads.stone.cost : w.B.roads.dirt.cost) : d.cost;
-        const afford = c && Object.entries(cost).every(([r, v]) => c.stock[r] >= v);
-        const tip = [d.workers ? `${d.workers} workers` : '', d.out ? `→ ${Object.entries(d.out).map(([r, v]) => `${v} ${r}`).join(', ')}` : '', d.in ? `uses ${costText(d.in)}` : '', d.housing ? `+${d.housing} housing` : '', d.req ? `needs ${d.req.terrain ? d.req.terrain.join('/') : d.req.deposit.join('/') + ' deposit'}` : ''].filter(Boolean).join(' · ');
-        html += `<button class="bbtn" data-act="place" data-type="${k}" ${locked ? 'disabled' : ''} title="${esc(tip)}"><span class="nm"><i class="sw" style="background:${d.color || CC[d.cat] || '#999'}"></i>${d.name}</span><span class="ct ${afford ? '' : 'warn'}">${locked ? '🔒 research' : costHtml(cost, w.B.resourceColors) + (ROADS[k] || d.line ? ' /tile' : '')}</span></button>`;
-      }
-      html += '</div>';
+  // ---------------- build bar ----------------
+  toggleBar() { this.bbOpen = !this.bbOpen; this.renderBuildBar(true); }
+  barCards() {
+    const w = this.w, c = this.curCity();
+    const cards = [];
+    for (const [k, d] of Object.entries(w.BD)) if (d.menu === this.bbTab) cards.push(k);
+    if (this.bbTab === 'civic') {
+      if (c && !c.hall) cards.unshift('townhall');
+      cards.push('road', 'sroad', 'found');
     }
-    return html;
+    return cards;
   }
+  cardCost(k) {
+    const w = this.w;
+    if (k === 'road') return w.B.roads.dirt.cost;
+    if (k === 'sroad') return w.B.roads.stone.cost;
+    if (k === 'found') { const S = w.B.settlers, sc = { ...S.cost }; for (const r in S.rations) sc[r] = (sc[r] || 0) + S.rations[r]; return sc; }
+    return w.BD[k].cost;
+  }
+  cardDef(k) { return k === 'found' ? { name: 'Found settlement', menu: 'civic' } : (this.w.BD[k] || ROADS[k]); }
+  renderBuildBar(force) {
+    const w = this.w, c = this.curCity(), bar = $('buildbar');
+    if (!bar) return;
+    bar.classList.toggle('collapsed', !this.bbOpen);
+    document.querySelectorAll('[data-act="bb-toggle"]').forEach(b => b.classList.toggle('on', this.bbOpen && b.id === 'bb-top'));
+    document.querySelectorAll('[data-act="bb-tab"]').forEach(b => b.classList.toggle('on', b.dataset.tab === this.bbTab));
+    $('bb-city').innerHTML = c ? `Building in <b>${esc(c.name)}</b>` : '';
+    const counts = {};
+    if (c) for (const b of w.buildings) if (!b.dead && b.city === c.id) counts[b.type] = (counts[b.type] || 0) + 1;
+    const RC = w.B.resourceColors;
+    const cards = this.barCards().map(k => {
+      const d = this.cardDef(k), cost = this.cardCost(k);
+      const locked = !!(d.research && !w.has(d.research));
+      const afford = !!c && Object.entries(cost).every(([r, v]) => c.stock[r] >= v);
+      const active = !!this.mode && ((this.mode.type === k) || (k === 'found' && this.mode.k === 'found'));
+      const n = d.line ? 0 : (counts[k] || 0);
+      return { k, d, cost, locked, afford, active, n };
+    });
+    const sig = [this.bbTab, this.bbOpen, c && c.id, ...cards.map(o => `${o.k}${+o.locked}${+o.afford}${+o.active}${o.n}`)].join('|');
+    if (!force && sig === this.lastHtml.bbSig) return;
+    this.lastHtml.bbSig = sig;
+    $('bb-cards').innerHTML = cards.map(o => {
+      const line = ROADS[o.k] || o.d.line;
+      return `<button class="bb-card${o.locked ? ' locked' : ''}${o.afford ? '' : ' poor'}${o.active ? ' active' : ''}" data-act="${o.k === 'found' ? 'found' : 'place'}" data-type="${o.k}" data-tip="${o.k}">` +
+        (o.n ? `<span class="bb-count">${o.n}</span>` : '') +
+        `<span class="bb-art">${buildingArt(o.k)}${o.locked ? '<span class="bb-lock">🔒</span>' : ''}</span>` +
+        `<span class="bb-name">${esc(o.d.name)}</span>` +
+        `<span class="bb-cost">${o.locked ? 'Research' : costHtml(o.cost, RC)}${line && !o.locked ? '<span class="muted">/tile</span>' : ''}</span></button>`;
+    }).join('');
+    if (this.tipType) this.showTip(this.tipType);
+  }
+  techName(id) { for (const br of this.w.RD.branches) for (const t of br.techs) if (t.id === id) return `${t.name} (${br.name})`; return id; }
+  showTip(k, el) {
+    const w = this.w, tip = $('bb-tip'), d = this.cardDef(k), RC = w.B.resourceColors;
+    if (!d) return;
+    this.tipType = k;
+    if (el) this.tipEl = el;
+    const rows = [];
+    const descT = d.desc || EXTRA_DESC[k] || (k === 'found' ? `Send ${w.B.settlers.civilians} civilians with supplies to found a new city in an explored, unsettled region. Each region holds one settlement.` : '');
+    rows.push(`<div class="tip-desc">${esc(descT)}</div>`);
+    const cost = this.cardCost(k);
+    rows.push(`<div class="tip-row"><span class="muted">Cost</span> ${costHtml(cost, RC)}${ROADS[k] || d.line ? ' per tile' : ''}${k === 'road' ? ` · bridge ${costHtml(w.B.roads.bridgeCost, RC)}` : ''}</div>`);
+    if (d.workers) rows.push(`<div class="tip-row"><span class="muted">Workers</span> ${d.workers}${d.crew ? ' (crew)' : ''}</div>`);
+    if (d.out) rows.push(`<div class="tip-row"><span class="muted">Makes</span> ${d.in ? costHtml(d.in, RC) + ' → ' : ''}${costHtml(d.out, RC)} per worker every ${d.cycle}s</div>`);
+    if (d.rp) rows.push(`<div class="tip-row"><span class="muted">Makes</span> ${d.rp} research point per worker every ${d.cycle}s</div>`);
+    if (d.housing) rows.push(`<div class="tip-row"><span class="muted">Housing</span> +${d.housing}</div>`);
+    if (d.drop) rows.push(`<div class="tip-row"><span class="muted">Accepts</span> ${d.drop[0] === '*' ? 'all goods' : d.drop.map(r => resIcon(r, RC, 12)).join(' ')}</div>`);
+    if (d.req) rows.push(`<div class="tip-row"><span class="muted">Needs</span> ${d.req.kind === 'footprint' ? `${d.req.count} ${d.req.terrain.join('/')} tiles under it` : `${d.req.terrain ? d.req.terrain.join('/') : d.req.deposit.join('/') + ' deposit'} within ${d.req.radius} tiles`}</div>`);
+    if (d.garrison) rows.push(`<div class="tip-row"><span class="muted">Garrison</span> ${d.garrison} archers</div>`);
+    if (d.hp && !d.ditch) rows.push(`<div class="tip-row"><span class="muted">HP</span> ${d.hp}${d.w ? ` · ${d.w}×${d.h} tiles` : ''}</div>`);
+    if (d.research && !w.has(d.research)) rows.push(`<div class="tip-row warn">🔒 Requires ${esc(this.techName(d.research))}</div>`);
+    if (ROADS[k] || d.line) rows.push('<div class="tip-row muted">Drag to draw a line.</div>');
+    else if (k !== 'found') rows.push('<div class="tip-row muted">Click to place · Shift-click to place several.</div>');
+    tip.innerHTML = `<div class="tip-title">${esc(d.name)}</div>${rows.join('')}`;
+    tip.hidden = false;
+    const card = this.tipEl && document.body.contains(this.tipEl) ? this.tipEl : document.querySelector(`.bb-card[data-tip="${k}"]`);
+    if (card) {
+      const r = card.getBoundingClientRect(), tw = tip.offsetWidth;
+      tip.style.left = Math.max(8, Math.min(window.innerWidth - tw - 8, r.left + r.width / 2 - tw / 2)) + 'px';
+      tip.style.bottom = (window.innerHeight - r.top + 8) + 'px';
+    }
+  }
+  hideTip() { this.tipType = null; this.tipEl = null; $('bb-tip').hidden = true; }
 
   cityPanel() {
     const w = this.w, c = this.curCity();

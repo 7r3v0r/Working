@@ -64,12 +64,15 @@ async function main() {
   game.ui = new UI(game);
   game.minimap.resize();
   loading.hidden = true;
+  game.ui.renderBuildBar(true);
   if (!params.has('nohelp')) game.ui.showHelp();
   window.game = game;
 
   const onResize = () => { document.documentElement.style.setProperty('--tb-h', document.getElementById('topbar').offsetHeight + 'px'); game.renderer.resize(); game.renderer.clampCam(); game.minimap.resize(); game.minimap.draw(true); };
   window.addEventListener('resize', onResize);
   new ResizeObserver(onResize).observe(document.getElementById('topbar'));
+  const bb = document.getElementById('buildbar');
+  new ResizeObserver(() => document.documentElement.style.setProperty('--bb-h', bb.offsetHeight + 'px')).observe(bb);
   onResize();
 
   const STEP = game.defs.balance.dt;

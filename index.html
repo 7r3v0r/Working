@@ -27,7 +27,7 @@
       </div>
     </div>
     <div class="tb-group">
-      <button data-panel="build" title="Build menu (B)">Build</button>
+      <button id="bb-top" data-act="bb-toggle" title="Show/hide build bar (B)">Build</button>
       <button data-panel="city" title="City panel (C)">City</button>
       <button data-panel="logistics" title="Cart routes (L)">Logistics</button>
       <button data-panel="research" title="Research (R)">Research</button>
@@ -48,7 +48,20 @@
   <div id="side" hidden></div>
   <div id="selection" hidden></div>
   <div id="mode-hint" hidden></div>
-  <div id="status"></div>
+  <div id="buildbar">
+    <div class="bb-head">
+      <div class="bb-tabs">
+        <button data-act="bb-tab" data-tab="civic">Settlement</button>
+        <button data-act="bb-tab" data-tab="industry">Industry</button>
+        <button data-act="bb-tab" data-tab="military">Military</button>
+      </div>
+      <span id="bb-city"></span>
+      <span id="status"></span>
+      <button class="bb-collapse" data-act="bb-toggle" title="Show/hide (B)">▾</button>
+    </div>
+    <div id="bb-cards" class="bb-cards"></div>
+  </div>
+  <div id="bb-tip" hidden></div>
   <div id="minimap-wrap"><canvas id="minimap"></canvas></div>
   <div id="overlay" hidden></div>
   <div id="loading">Raising the map…</div>
