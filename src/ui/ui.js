@@ -632,8 +632,8 @@ export class UI {
     const cost = this.cardCost(k);
     rows.push(`<div class="tip-row"><span class="muted">Cost</span> ${costHtml(cost, RC)}${ROADS[k] || d.line ? ' per tile' : ''}${k === 'road' ? ` · bridge ${costHtml(w.B.roads.bridgeCost, RC)}` : ''}</div>`);
     if (d.workers) rows.push(`<div class="tip-row"><span class="muted">Workers</span> ${d.workers}${d.crew ? ' (crew)' : ''}</div>`);
-    if (d.out) rows.push(`<div class="tip-row"><span class="muted">Makes</span> ${d.in ? costHtml(d.in, RC) + ' → ' : ''}${costHtml(d.out, RC)} per worker every ${d.cycle}s</div>`);
-    if (d.rp) rows.push(`<div class="tip-row"><span class="muted">Makes</span> ${d.rp} research point per worker every ${d.cycle}s</div>`);
+    if (d.out) rows.push(`<div class="tip-row"><span class="muted">Makes</span> ${d.in ? costHtml(d.in, RC) + ' → ' : ''}${costHtml(d.out, RC)} per worker every ${Math.round(d.cycle * (w.B.production.cycleMult || 1))}s</div>`);
+    if (d.rp) rows.push(`<div class="tip-row"><span class="muted">Makes</span> ${d.rp} research point per worker every ${Math.round(d.cycle * (w.B.production.cycleMult || 1))}s</div>`);
     if (d.housing) rows.push(`<div class="tip-row"><span class="muted">Housing</span> +${d.housing}</div>`);
     if (d.drop) rows.push(`<div class="tip-row"><span class="muted">Accepts</span> ${d.drop[0] === '*' ? 'all goods' : d.drop.map(r => resIcon(r, RC, 12)).join(' ')}</div>`);
     if (d.req) rows.push(`<div class="tip-row"><span class="muted">Needs</span> ${d.req.kind === 'footprint' ? `${d.req.count} ${d.req.terrain.join('/')} tiles under it` : `${d.req.terrain ? d.req.terrain.join('/') : d.req.deposit.join('/') + ' deposit'} within ${d.req.radius} tiles`}</div>`);
@@ -778,8 +778,8 @@ export class UI {
     if (d.housing) html += `<div>Residents ${b.residents.length}/${d.housing}</div>`;
     if (b.inside.length && !d.garrison) html += `<div>${b.inside.length} inside</div>`;
     if (d.garrison) html += `<div>Garrison ${b.inside.length}/${d.garrison} archers (+${w.UD.archer.towerBonus} range)</div>`;
-    if (d.out) html += `<div class="muted">${d.in ? costText(d.in) + ' → ' : ''}${Object.entries(d.out).map(([r, v]) => `${v} ${r}`).join(', ')} every ${d.cycle}s per worker</div>`;
-    if (d.rp) html += `<div class="muted">${d.rp} RP every ${d.cycle}s per worker</div>`;
+    if (d.out) html += `<div class="muted">${d.in ? costText(d.in) + ' → ' : ''}${Object.entries(d.out).map(([r, v]) => `${v} ${r}`).join(', ')} every ${Math.round(d.cycle * (w.B.production.cycleMult || 1))}s per worker</div>`;
+    if (d.rp) html += `<div class="muted">${d.rp} RP every ${Math.round(d.cycle * (w.B.production.cycleMult || 1))}s per worker</div>`;
     if (d.drop) html += `<div class="muted">Drop-off for ${d.drop[0] === '*' ? 'all goods' : d.drop.join(', ')}</div>`;
     if (b.type === 'nest') html += `<div class="muted">Strength ${b.strength}. Spawns defenders while under attack. Select soldiers and right-click it to attack.</div>`;
     if (d.train && b.done) {

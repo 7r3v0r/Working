@@ -16,8 +16,8 @@ export function updateVision(w) {
   vis.fill(0);
   const nm = w.isNight() ? w.B.vision.nightMult : 1;
   const seen = new Set();
-  const stamp = (x, y, r0) => {
-    const r = Math.max(1, Math.round(r0 * nm));
+  const stamp = (x, y, r0) => stampRaw(x, y, Math.max(1, Math.round(r0 * nm)));
+  const stampRaw = (x, y, r) => {
     const cx = x | 0, cy = y | 0;
     const key = (cy * W + cx) * 64 + r;
     if (seen.has(key)) return;
@@ -44,6 +44,8 @@ export function updateVision(w) {
     if (b.dead || !b.city) continue;
     const d = w.BD[b.type];
     if (d.line && !d.vision) continue;
-    stamp(b.x + b.w / 2, b.y + b.h / 2, (b.done && d.vision) || bv);
+    // Vision is measured from the building's edge, and buildings always see at least `bv` tiles.
+    const r = Math.max(bv, Math.round(((b.done && d.vision) || bv) * nm));
+    stampRaw(b.x + b.w / 2, b.y + b.h / 2, r + Math.ceil(Math.max(b.w, b.h) / 2));
   }
 }

@@ -146,13 +146,16 @@ function grow(w, c) {
   const B = w.B;
   const free = c.housing - c.nCiv;
   if (free <= 0 || c.stock.food < B.growth.minFood || c.trend <= 0) return;
-  const pop = Math.max(1, c.nCiv + c.nSol);
-  const chance = Math.max(0.1, Math.min(B.growth.maxChance, c.trend / (pop * B.food.perPersonPerDay * 0.5)));
-  if (w.rng.next() >= chance) return;
+  // Arrivals scale with how much open housing there is: each check fills a share of the empty
+  // homes, capped by how many extra mouths the food surplus can feed.
+  const expected = free * B.growth.fillRate;
+  let n = Math.floor(expected) + (w.rng.next() < expected % 1 ? 1 : 0);
+  n = Math.min(n, free, Math.max(1, Math.floor(c.trend / B.food.perPersonPerDay)));
+  if (n <= 0) return;
   const hall = w.bMap.get(c.hall);
   const x = hall ? hall.x + hall.w / 2 : c.cx + 0.5, y = hall ? hall.y + hall.h + 0.5 : c.cy + 0.5;
-  w.spawn('civ', x, y, { city: c.id });
-  c.nCiv++;
+  for (let i = 0; i < n; i++) w.spawn('civ', x + (i % 3) - 1, y, { city: c.id });
+  c.nCiv += n;
 }
 
 function assignHomes(w, c) {
@@ -283,14 +286,13 @@ export function updateCiv(w, u) {
       }
       return;
     case 'home':
-      if ((w.tick + u.id) % 20 === 0 && !w.isNight()) { w.exit(u); u.task = 'idle'; }
+      if ((w.tick + u.id) % 20 === 0) { w.exit(u); u.task = 'idle'; }
       return;
     case 'waitIn':
       if ((w.tick + u.id) % 50 === 0) {
         const c = w.cityMap.get(u.city);
         if (!job || !jd) { if (u.inside) w.exit(u); u.task = 'idle'; return; }
         if (c && jd.in && hasStock(c, jd.in)) { w.exit(u); u.task = 'idle'; }
-        else if (w.isNight() && u.home) { w.exit(u); u.task = 'idle'; }
       }
       return;
     case 'crew':
@@ -304,12 +306,7 @@ function decide(w, u, job, jd) {
   const c = w.cityMap.get(u.city);
   if (!c) return;
   if (u.inside) w.exit(u);
-  const night = w.isNight();
   if (u.carry) { const dr = nearestDrop(w, c, u.carry.r, u.x, u.y); if (dr) { go(w, u, dr, 'toDrop'); return; } deposit(w, u, c); }
-  if (night && u.home && !(jd && jd.crew)) {
-    const h = w.bMap.get(u.home);
-    if (h && h.done && !h.infected) { go(w, u, h, 'toHome'); return; }
-  }
   if (job && job.done && !job.infected) {
     if (jd.in && !u.hasIn && hasStock(c, jd.in)) {
       const dr = nearestDrop(w, c, Object.keys(jd.in)[0], u.x, u.y);
@@ -354,7 +351,7 @@ function arrive(w, u, b, job, jd) {
       w.enter(u, b); u.task = 'home'; return;
     case 'toDrop':
       deposit(w, u, c);
-      if (job && jd && jd.in && !u.hasIn && c && hasStock(c, jd.in) && !(w.isNight() && u.home)) { takeStock(c, jd.in); u.hasIn = true; go(w, u, job, 'toJob'); return; }
+      if (job && jd && jd.in && !u.hasIn && c && hasStock(c, jd.in)) { takeStock(c, jd.in); u.hasIn = true; go(w, u, job, 'toJob'); return; }
       u.task = 'idle'; return;
     case 'toFetch':
       if (job && jd && jd.in && c && hasStock(c, jd.in)) { takeStock(c, jd.in); u.hasIn = true; go(w, u, job, 'toJob'); return; }
@@ -372,7 +369,8 @@ function arrive(w, u, b, job, jd) {
 }
 
 function cycleTime(w, b, jd) {
-  let t = jd.cycle;
+  // Workers no longer go home at night, so cycles are stretched to keep daily output the same.
+  let t = jd.cycle * (w.B.production.cycleMult || 1);
   if (b.type === 'smelter' && w.has('smelterEff')) t *= 0.6;
   return t;
 }
@@ -391,7 +389,6 @@ function work(w, u, job, jd) {
   if (jd.rp) {
     w.research.rp += jd.rp;
     u.timer = cycleTime(w, job, jd);
-    if (w.isNight() && u.home) { w.exit(u); u.task = 'idle'; }
     return;
   }
   const [res, amt0] = Object.entries(jd.out)[0];
