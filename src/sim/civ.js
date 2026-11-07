@@ -423,7 +423,7 @@ export function placementCity(w, type, x, y) {
   const d = w.BD[type];
   const cx = x + d.w / 2, cy = y + d.h / 2;
   let city = cityOfRegion(w, w.regionAt(cx, cy));
-  const lim = d.defense ? w.B.city.defenseRadius : w.B.city.buildRadius;
+  const lim = d.placeRadius || (d.defense ? w.B.city.defenseRadius : w.B.city.buildRadius);
   if (city && Math.hypot(cx - city.cx, cy - city.cy) <= lim) return city;
   if (d.defense) {
     let best = null, bd = Infinity;

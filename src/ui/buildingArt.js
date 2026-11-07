@@ -128,6 +128,11 @@ const ART = {
   tower: SH + `<path d="M13 41L17 17M35 41L31 17M14.5 33H33.5M16 25H32M14.5 33L32 25M33.5 33L16 25" stroke="${WOOD}" stroke-width="1.8" fill="none"/>` +
     `<rect x="12" y="12" width="24" height="6" fill="${WOOD}"/>` + [13, 18, 23, 28, 33].map(x => `<rect x="${x}" y="8" width="2" height="4" fill="${WOOD}"/>`).join('') +
     `<path d="M10 8L24 1L38 8Z" fill="#5A3A1E"/><rect x="20" y="13" width="2" height="2" fill="#7DD3FC"/><rect x="26" y="13" width="2" height="2" fill="#7DD3FC"/>`,
+  lookout: SH + `<path d="M19 42L22.5 12M29 42L25.5 12" stroke="${WOOD}" stroke-width="2"/>` +
+    [36, 30, 24, 18].map(y => `<path d="M${19.8 + (42 - y) * 0.117} ${y}H${28.2 - (42 - y) * 0.117}" stroke="#6B4320" stroke-width="1.3"/>`).join('') +
+    `<rect x="16" y="9" width="16" height="4" fill="${WOOD}"/><path d="M16 9V6M20 9V6M24 9V6M28 9V6M32 9V6" stroke="${WOOD}" stroke-width="1.2"/><path d="M15.5 6H32.5" stroke="${WOOD}" stroke-width="1.4"/>` +
+    `<path d="M29 5L38 1.5" stroke="#3A3A3A" stroke-width="2.4" stroke-linecap="round"/><circle cx="38.5" cy="1.6" r="1.4" fill="#7DD3FC"/>` +
+    `<path d="M10 20a14 14 0 0 1 0-12M6 22a19 19 0 0 1 0-16" stroke="#7DD3FC" stroke-width="1" fill="none" opacity=".7"/>`,
   stower: SH + `<rect x="13" y="11" width="22" height="30" fill="${STONE}"/>` + bricks(13, 11, 22, 30) + crenels(11, 11, 26, STONE, 4) +
     `<path d="M21 23v-3a3 3 0 0 1 6 0v3Z" fill="#2A2622"/><path d="M20 41V35a4 4 0 0 1 8 0v6Z" fill="${DOOR}"/><path d="M24 7V1" stroke="#3A2A10" stroke-width="1"/><path d="M24 1h6l-2 1.8 2 1.8h-6Z" fill="${CLOTH}"/>`,
   trap: SH + `<rect x="4" y="34" width="40" height="6" fill="${WOOD}"/><path d="M4 37H44" stroke="#6B4320" stroke-width=".8"/>` +

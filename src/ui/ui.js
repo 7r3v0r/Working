@@ -300,7 +300,7 @@ export class UI {
       let radius = null;
       if (m.k === 'build') {
         const pc = cityOfRegion(w, w.regionAt(x + d.w / 2, y + d.h / 2)) || c;
-        if (pc) radius = [pc.cx, pc.cy, d.defense ? w.B.city.defenseRadius : w.B.city.buildRadius];
+        if (pc) radius = [pc.cx, pc.cy, d.placeRadius || (d.defense ? w.B.city.defenseRadius : w.B.city.buildRadius)];
       }
       this.ghost = { tiles: [[x, y, r.ok, d.w, d.h]], reason: r.ok ? '' : r.reason, radius };
     } else {
@@ -617,6 +617,8 @@ export class UI {
     if (d.housing) rows.push(`<div class="tip-row"><span class="muted">Housing</span> +${d.housing}</div>`);
     if (d.drop) rows.push(`<div class="tip-row"><span class="muted">Accepts</span> ${d.drop[0] === '*' ? 'all goods' : d.drop.map(r => resIcon(r, RC, 12)).join(' ')}</div>`);
     if (d.req) rows.push(`<div class="tip-row"><span class="muted">Needs</span> ${d.req.kind === 'footprint' ? `${d.req.count} ${d.req.terrain.join('/')} tiles under it` : `${d.req.terrain ? d.req.terrain.join('/') : d.req.deposit.join('/') + ' deposit'} within ${d.req.radius} tiles`}</div>`);
+    if (d.vision && !d.garrison) rows.push(`<div class="tip-row"><span class="muted">Vision</span> ${d.vision} tiles</div>`);
+    if (d.placeRadius) rows.push(`<div class="tip-row"><span class="muted">Placement</span> up to ${d.placeRadius} tiles from a town</div>`);
     if (d.garrison) rows.push(`<div class="tip-row"><span class="muted">Garrison</span> ${d.garrison} archers</div>`);
     if (d.hp && !d.ditch) rows.push(`<div class="tip-row"><span class="muted">HP</span> ${d.hp}${d.w ? ` · ${d.w}×${d.h} tiles` : ''}</div>`);
     if (d.research && !w.has(d.research)) rows.push(`<div class="tip-row warn">🔒 Requires ${esc(this.techName(d.research))}</div>`);

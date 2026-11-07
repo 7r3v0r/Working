@@ -44,6 +44,6 @@ export function updateVision(w) {
     if (b.dead || !b.city) continue;
     const d = w.BD[b.type];
     if (d.line && !d.vision) continue;
-    stamp(b.x + b.w / 2, b.y + b.h / 2, d.vision || bv);
+    stamp(b.x + b.w / 2, b.y + b.h / 2, (b.done && d.vision) || bv);
   }
 }
