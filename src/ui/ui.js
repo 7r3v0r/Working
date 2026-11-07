@@ -48,10 +48,16 @@ export class UI {
   }
   get w() { return this.g.world; }
   // view state read by the renderer
-  get view() { return { sel: this.sel, ghost: this.ghost, box: this.box }; }
+  get view() { return { sel: { ...this.sel, squads: this.selSquads() }, ghost: this.ghost, box: this.box }; }
+  selSquads() {
+    const out = new Set();
+    for (const id of this.sel.units) { const u = this.w.unitMap.get(id); if (u && u.squad) out.add(u.squad); }
+    return out;
+  }
+  isSoldier(u) { return !u.dead && !u.isZ && !!u.squad; }
 
   reset() {
-    this.sel = { squads: new Set(), building: 0 };
+    this.sel = { units: new Set(), building: 0 };
     this.mode = null; this.ghost = null; this.box = null;
     this.city = this.w.capital && this.w.cityMap.get(this.w.capital) ? this.w.capital : (this.w.cities[0] ? this.w.cities[0].id : 0);
     this.alerts = [];
@@ -75,12 +81,17 @@ export class UI {
     cv.addEventListener('mouseenter', () => { this.mouse.in = true; });
     cv.addEventListener('mouseleave', () => { this.mouse.in = false; this.ghost = null; });
     cv.addEventListener('mousedown', e => this.onDown(e));
+    cv.addEventListener('dblclick', e => {
+      if (this.mode) return;
+      const u = this.w.unitMap.get(this.lastClicked);
+      if (u && this.isSoldier(u)) this.selectSquad(u.squad, e.shiftKey);
+    });
     window.addEventListener('mouseup', e => this.onUp(e));
     cv.addEventListener('contextmenu', e => { e.preventDefault(); this.onRight(e); });
     cv.addEventListener('wheel', e => { e.preventDefault(); this.r.zoomAt(e.offsetX, e.offsetY, e.deltaY < 0 ? 1.15 : 1 / 1.15); }, { passive: false });
     const mm = $('minimap');
     const mmGo = e => { const rc = mm.getBoundingClientRect(); const [x, y] = this.g.minimap.toWorld(e.clientX - rc.left, e.clientY - rc.top); this.r.cam.x = x; this.r.cam.y = y; this.r.clampCam(); };
-    mm.addEventListener('mousedown', e => { if (e.button === 0) { this.mmDrag = true; mmGo(e); } else if (e.button === 2 && this.sel.squads.size) { const rc = mm.getBoundingClientRect(); const [x, y] = this.g.minimap.toWorld(e.clientX - rc.left, e.clientY - rc.top); this.order('move', x, y); } });
+    mm.addEventListener('mousedown', e => { if (e.button === 0) { this.mmDrag = true; mmGo(e); } else if (e.button === 2 && this.sel.units.size) { const rc = mm.getBoundingClientRect(); const [x, y] = this.g.minimap.toWorld(e.clientX - rc.left, e.clientY - rc.top); this.order('move', x, y); } });
     mm.addEventListener('contextmenu', e => e.preventDefault());
     window.addEventListener('mousemove', e => { if (this.mmDrag) mmGo(e); });
     window.addEventListener('mouseup', () => { this.mmDrag = false; });
@@ -106,7 +117,7 @@ export class UI {
     const pan = ['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
     if (!down) { this.keys.delete(k); return; }
     if (e.ctrlKey || e.metaKey) return;
-    if (k === 'a' && this.sel.squads.size) { this.setMode({ k: 'amove' }); return; }
+    if (k === 'a' && this.sel.units.size) { this.setMode({ k: 'amove' }); return; }
     if (pan.includes(k)) { this.keys.add(k); if (k.startsWith('Arrow')) e.preventDefault(); return; }
     switch (k) {
       case ' ': e.preventDefault(); this.g.togglePause(); break;
@@ -122,12 +133,12 @@ export class UI {
       case 'y': this.toggleOverlay('borders'); break;
       case 'v': this.toggleOverlay('vision'); break;
       case 'Tab': e.preventDefault(); this.cycleCity(); break;
-      case 'h': if (this.sel.squads.size) this.order('hold'); break;
-      case 'g': if (this.sel.squads.size) this.setMode({ k: 'garrison' }); break;
-      case 'p': if (this.sel.squads.size) this.setMode({ k: 'patrol' }); break;
+      case 'h': if (this.sel.units.size) this.order('hold'); break;
+      case 'g': if (this.sel.units.size) this.setMode({ k: 'garrison' }); break;
+      case 'p': if (this.sel.units.size) this.setMode({ k: 'patrol' }); break;
       case 'Escape':
         if (this.mode) this.setMode(null);
-        else if (this.sel.squads.size || this.sel.building) { this.sel.squads.clear(); this.sel.building = 0; }
+        else if (this.sel.units.size || this.sel.building) { this.sel.units.clear(); this.sel.building = 0; }
         else if (this.panel) this.togglePanel(this.panel);
         break;
       case 'Delete': case 'Backspace': this.demolish(); break;
@@ -189,7 +200,7 @@ export class UI {
   }
   onRight(e) {
     if (this.mode) { this.setMode(null); return; }
-    if (!this.sel.squads.size) return;
+    if (!this.sel.units.size) return;
     const [tx, ty, wx, wy] = this.tileAt(e.offsetX, e.offsetY);
     const b = this.buildingAt(tx, ty);
     if (b && (b.infected || this.w.BD[b.type].zombie)) this.order('attack', wx, wy, b.id);
@@ -214,12 +225,13 @@ export class UI {
       if (d < bd) { bd = d; best = u; }
     }
     if (best) {
-      if (!add) { this.sel.squads.clear(); this.sel.building = 0; }
-      if (add && this.sel.squads.has(best.squad)) this.sel.squads.delete(best.squad); else this.sel.squads.add(best.squad);
+      if (!add) { this.sel.units.clear(); this.sel.building = 0; }
+      if (add && this.sel.units.has(best.id)) this.sel.units.delete(best.id); else this.sel.units.add(best.id);
+      this.lastClicked = best.id;
       return;
     }
     const b = this.buildingAt(tx, ty);
-    this.sel.squads.clear();
+    this.sel.units.clear();
     this.sel.building = b ? b.id : 0;
     if (b && b.city) {
       this.city = b.city;
@@ -229,16 +241,23 @@ export class UI {
   boxSelect(box, add) {
     const [x0, y0] = this.r.toWorld(Math.min(box.x0, box.x1), Math.min(box.y0, box.y1));
     const [x1, y1] = this.r.toWorld(Math.max(box.x0, box.x1), Math.max(box.y0, box.y1));
-    if (!add) this.sel.squads.clear();
+    if (!add) this.sel.units.clear();
     this.sel.building = 0;
     for (const u of this.w.units) {
-      if (u.dead || u.isZ || !u.squad) continue;
-      const ux = u.inside ? (this.w.bMap.get(u.inside) || u).x : u.x, uy = u.inside ? (this.w.bMap.get(u.inside) || u).y : u.y;
-      if (ux >= x0 && ux <= x1 && uy >= y0 && uy <= y1) this.sel.squads.add(u.squad);
+      if (!this.isSoldier(u)) continue;
+      const b = u.inside ? this.w.bMap.get(u.inside) : null;
+      const ux = b ? b.x + b.w / 2 : u.x, uy = b ? b.y + b.h / 2 : u.y;
+      if (ux >= x0 && ux <= x1 && uy >= y0 && uy <= y1) this.sel.units.add(u.id);
     }
   }
+  selectSquad(sid, add) {
+    const s = this.w.squadMap.get(sid);
+    if (!s) return;
+    if (!add) { this.sel.units.clear(); this.sel.building = 0; }
+    for (const id of s.members) this.sel.units.add(id);
+  }
   order(o, x, y, b) {
-    const r = this.w.cmd({ t: 'order', squads: [...this.sel.squads], o, x, y, b });
+    const r = this.w.cmd({ t: 'order', units: [...this.sel.units], o, x, y, b });
     if (!r.ok && r.reason) this.flash(r.reason);
   }
 
@@ -348,14 +367,14 @@ export class UI {
       case 'qcancel': if (b) res(w.cmd({ t: 'cancelTrain', b: b.id, i: +ds.i })); break;
       case 'cart': if (b) res(w.cmd({ t: 'buildCart', b: b.id, n: +ds.n || 1 })); break;
       case 'demolish': this.demolish(); break;
-      case 'deselect': this.sel.squads.clear(); this.sel.building = 0; break;
+      case 'deselect': this.sel.units.clear(); this.sel.building = 0; break;
       case 'sq-hold': this.order('hold'); break;
       case 'sq-amove': this.setMode({ k: 'amove' }); break;
       case 'sq-patrol': this.setMode({ k: 'patrol' }); break;
       case 'sq-garrison': this.setMode({ k: 'garrison' }); break;
-      case 'sq-split': { const r = w.cmd({ t: 'split', squad: [...this.sel.squads][0] }); if (r.ok) this.sel.squads.add(r.squad); res(r); break; }
-      case 'sq-merge': { const r = w.cmd({ t: 'merge', squads: [...this.sel.squads] }); if (r.ok) { this.sel.squads = new Set([r.squad]); } res(r); break; }
-      case 'sq-only': this.sel.squads = new Set([+ds.id]); break;
+      case 'sq-group': res(w.cmd({ t: 'group', units: [...this.sel.units] })); break;
+      case 'sq-only': this.selectSquad(+ds.id, false); break;
+      case 'sq-whole': for (const sid of this.selSquads()) this.selectSquad(sid, true); break;
       case 'goto': this.r.cam.x = +ds.x; this.r.cam.y = +ds.y; this.r.clampCam(); break;
       case 'route-add': {
         const g = id => $(id) && $(id).value;
@@ -395,7 +414,7 @@ export class UI {
     const c = cs[(i + 1) % cs.length];
     this.city = c.id;
     this.r.cam.x = c.cx; this.r.cam.y = c.cy; this.r.clampCam();
-    this.sel.squads.clear(); this.sel.building = c.hall || 0;
+    this.sel.units.clear(); this.sel.building = c.hall || 0;
     this.lastHtml = {};
   }
 
@@ -411,7 +430,8 @@ export class UI {
 <div class="keys">
 <kbd>WASD</kbd><span>Pan (or edge-scroll, middle-drag, minimap)</span>
 <kbd>Wheel</kbd><span>Zoom</span>
-<kbd>Left click / drag</kbd><span>Select squad / building · box-select squads</span>
+<kbd>Left click / drag</kbd><span>Select a soldier or building · box-select soldiers (Shift adds)</span>
+<kbd>Double-click</kbd><span>Select a soldier's whole squad</span>
 <kbd>Right click</kbd><span>Move (on a nest/infected building: attack; on a tower: garrison)</span>
 <kbd>A</kbd><span>Attack-move (with squads selected)</span>
 <kbd>H</kbd> <span>Hold position</span>
@@ -715,10 +735,10 @@ export class UI {
   // ---------------- selection panel ----------------
   renderSel() {
     const w = this.w, el = $('selection');
-    for (const id of [...this.sel.squads]) if (!w.squadMap.get(id)) this.sel.squads.delete(id);
+    for (const id of [...this.sel.units]) { const u = w.unitMap.get(id); if (!u || !this.isSoldier(u)) this.sel.units.delete(id); }
     if (this.sel.building && !w.bMap.get(this.sel.building)) this.sel.building = 0;
     let html = '';
-    if (this.sel.squads.size) html = this.squadSel();
+    if (this.sel.units.size) html = this.squadSel();
     else if (this.sel.building) html = this.buildingSel(w.bMap.get(this.sel.building));
     if (!html) { el.hidden = true; this.lastHtml.selection = ''; return; }
     el.hidden = false;
@@ -726,19 +746,24 @@ export class UI {
   }
   squadSel() {
     const w = this.w, UD = w.UD;
-    const sqs = [...this.sel.squads].map(id => w.squadMap.get(id)).filter(Boolean);
-    let html = '';
+    const units = [...this.sel.units].map(id => w.unitMap.get(id)).filter(Boolean);
+    const sqs = [...this.selSquads()].map(id => w.squadMap.get(id)).filter(Boolean);
+    const counts = {};
+    let inside = 0;
+    for (const u of units) { counts[u.k] = (counts[u.k] || 0) + 1; if (u.inside) inside++; }
     const ORD = { idle: 'Standing guard', move: 'Moving', amove: 'Attack-moving', hold: 'Holding', patrol: 'Patrolling', attack: 'Attacking' };
+    let html = `<h4>${units.length} soldier${units.length === 1 ? '' : 's'} selected${inside ? ` <span class="muted">· ${inside} garrisoned</span>` : ''}</h4>`;
+    html += `<div class="chips">${Object.entries(counts).map(([k, n]) => `<span class="chip"><i class="sw" style="background:${UD[k].color}"></i>${n} ${UD[k].name}</span>`).join('')}</div>`;
+    const partial = sqs.some(s => s.members.some(id => !this.sel.units.has(id)));
     for (const s of sqs.slice(0, 4)) {
-      const counts = {};
-      let inside = 0;
-      for (const id of s.members) { const u = w.unitMap.get(id); if (!u) continue; counts[u.k] = (counts[u.k] || 0) + 1; if (u.inside) inside++; }
+      const nSel = s.members.filter(id => this.sel.units.has(id)).length;
       const eta = squadETA(w, s);
-      html += `<h4><a data-act="sq-only" data-id="${s.id}" style="cursor:pointer">${esc(s.name)}</a> <span class="muted">· ${s.members.length}/50 · ${ORD[s.order.t] || s.order.t}${eta ? ` · ETA ${mmss(eta)}` : ''}${inside ? ` · ${inside} garrisoned` : ''}</span></h4>`;
-      html += `<div class="chips">${Object.entries(counts).map(([k, n]) => `<span class="chip"><i class="sw" style="background:${UD[k].color}"></i>${n} ${UD[k].name}</span>`).join('')}</div>`;
+      html += `<div class="muted"><a data-act="sq-only" data-id="${s.id}" style="cursor:pointer;color:var(--text)">${esc(s.name)}</a> · ${nSel === s.members.length ? 'all' : `${nSel} of`} ${s.members.length} · ${ORD[s.order.t] || s.order.t}${eta ? ` · ETA ${mmss(eta)}` : ''}</div>`;
     }
     if (sqs.length > 4) html += `<div class="muted">+${sqs.length - 4} more squads</div>`;
-    html += `<div class="actions"><button data-act="sq-amove" title="A">Attack-move</button><button data-act="sq-hold" title="H">Hold</button><button data-act="sq-patrol" title="P">Patrol</button><button data-act="sq-garrison" title="G">Garrison</button>${sqs.length === 1 ? '<button data-act="sq-split">Split</button>' : '<button data-act="sq-merge">Merge</button>'}<button data-act="deselect">✕</button></div><div class="muted" style="margin-top:4px">Right-click to move · right-click a nest to attack it</div>`;
+    html += `<div class="actions"><button data-act="sq-amove" title="A">Attack-move</button><button data-act="sq-hold" title="H">Hold</button><button data-act="sq-patrol" title="P">Patrol</button><button data-act="sq-garrison" title="G">Garrison</button>` +
+      `${sqs.length > 1 || partial ? '<button data-act="sq-group" title="Make the selected soldiers their own squad">Form squad</button>' : ''}${partial ? '<button data-act="sq-whole" title="Select every soldier in these squads (or double-click a soldier)">Whole squad</button>' : ''}<button data-act="deselect">✕</button></div>` +
+      `<div class="muted" style="margin-top:4px">Right-click to move · orders apply only to the selected soldiers · double-click a soldier to select its squad</div>`;
     return html;
   }
   buildingSel(b) {

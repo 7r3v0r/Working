@@ -520,6 +520,7 @@ export class World {
       case 'train': return Mil.cmdTrain(this, c);
       case 'cancelTrain': return Mil.cmdCancelTrain(this, c);
       case 'merge': return Mil.cmdMerge(this, c);
+      case 'group': return Mil.cmdGroup(this, c);
       case 'split': return Mil.cmdSplit(this, c);
       case 'buildCart': return Log.cmdBuildCart(this, c);
       case 'route': return Log.cmdRoute(this, c);

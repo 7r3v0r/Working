@@ -44,8 +44,49 @@ function members(w, sqs) {
   return out;
 }
 
+// Turn a set of selected units into squads: fully selected squads are kept as they are;
+// soldiers picked out of a larger squad are moved into a new squad of their own.
+export function squadsForUnits(w, ids, forceNew = false) {
+  const bySq = new Map();
+  for (const id of ids) {
+    const u = w.unitMap.get(id);
+    if (!u || u.dead || u.isZ || !u.squad) continue;
+    if (!bySq.has(u.squad)) bySq.set(u.squad, []);
+    bySq.get(u.squad).push(u);
+  }
+  const out = [], loose = [];
+  for (const [sid, us] of bySq) {
+    const s = w.squadMap.get(sid);
+    if (!forceNew && s && us.length === s.members.length) out.push(s);
+    else loose.push(...us);
+  }
+  if (forceNew && bySq.size === 1) {
+    const s = w.squadMap.get([...bySq.keys()][0]);
+    if (s && s.members.length === loose.length) return [s];
+  }
+  loose.sort((a, b) => a.id - b.id);
+  for (let i = 0; i < loose.length; i += 50) {
+    const chunk = loose.slice(i, i + 50);
+    const cityId = chunk[0].city;
+    const c = w.cityMap.get(cityId);
+    const n = w.squads.filter(s => s.city === cityId).length + 1;
+    const ns = newSquad(w, cityId, `${c ? c.name : 'Free'} Squad ${n}`);
+    const old = w.squadMap.get(chunk[0].squad);
+    if (old) ns.order = { ...old.order };
+    for (const u of chunk) { removeFromSquad(w, u); addToSquad(w, u, ns); }
+    out.push(ns);
+  }
+  return out;
+}
+
+export function cmdGroup(w, c) {
+  const sqs = squadsForUnits(w, c.units, true);
+  if (!sqs.length) return { ok: false, reason: 'No soldiers selected' };
+  return { ok: true, squads: sqs.map(s => s.id) };
+}
+
 export function cmdOrder(w, c) {
-  const sqs = c.squads.map(id => w.squadMap.get(id)).filter(Boolean);
+  const sqs = c.units ? squadsForUnits(w, c.units) : c.squads.map(id => w.squadMap.get(id)).filter(Boolean);
   if (!sqs.length) return { ok: false, reason: 'No squad selected' };
   const ms = members(w, sqs);
   if (c.o === 'hold') {

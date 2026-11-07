@@ -180,7 +180,7 @@ export class Renderer {
     const w = this.w, ctx = this.ctx, s = this.cam.s, UD = w.UD, W = w.W, vis = w.visible;
     const B = this.buckets;
     for (const v of B.values()) v.length = 0;
-    const selSq = ui ? ui.sel.squads : null;
+    const selU = ui ? ui.sel.units : null;
     const sel = [];
     const carriers = [];
     for (const u of w.units) {
@@ -192,7 +192,7 @@ export class Renderer {
       let arr = B.get(col); if (!arr) { arr = []; B.set(col, arr); }
       const sz = (UD[u.k].size || 1);
       arr.push(x, y, sz);
-      if (selSq && u.squad && selSq.has(u.squad)) sel.push(x, y, sz);
+      if (selU && selU.has(u.id)) sel.push(x, y, sz);
       if (u.carry && s >= 4) carriers.push(x, y, w.B.resourceColors[u.carry.r]);
       else if (u.cargo && s >= 3) carriers.push(x, y, w.B.resourceColors[u.cargo.r]);
     }

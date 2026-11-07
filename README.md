@@ -40,7 +40,8 @@ The suite covers the economy, infection, settlers, carts, starvation, training, 
 | --- | --- |
 | WASD / arrows, edge-scroll, middle-drag, minimap | Pan |
 | Mouse wheel | Zoom (whole map to 24 px per tile) |
-| Left click / drag | Select a squad or building / box-select squads |
+| Left click / drag | Select a soldier or building / box-select soldiers (Shift adds) |
+| Double-click | Select a soldier's whole squad |
 | Right click | Move. On a nest or infected building: attack. On a tower: garrison. Shift+right-click: attack-move |
 | A, H, G, P | Attack-move, hold, garrison, patrol (with squads selected) |
 | Space, 1 / 2 / 3 | Pause (you can still give orders), then 1x / 2x / 4x |
