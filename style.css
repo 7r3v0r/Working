@@ -26,9 +26,12 @@ input[type=number] { width: 58px; }
 .tb-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .sep { width: 1px; height: 18px; background: #3a3d48; margin: 0 2px; }
 .city-btn { font-weight: 700; color: var(--accent); min-width: 110px; }
-.stock { display: flex; gap: 8px; flex-wrap: wrap; }
+.stock { display: flex; gap: 10px; flex-wrap: wrap; }
 .res { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
-.res i { width: 9px; height: 9px; display: inline-block; border: 1px solid rgba(0,0,0,0.6); }
+.res .ico { flex: none; }
+.ico { display: inline-block; vertical-align: -2px; }
+.cost { display: inline-flex; align-items: center; gap: 2px; margin-right: 4px; }
+.cost .ico { vertical-align: -1px; }
 .res.zero { color: var(--muted); }
 .stat { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .clock { min-width: 120px; text-align: right; }

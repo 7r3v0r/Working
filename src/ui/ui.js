@@ -5,6 +5,7 @@ import { squadETA, trainTime } from '../sim/military.js';
 import { regionThreat } from '../sim/zombies.js';
 import { TER_NAMES, DEP_NAMES } from '../sim/map.js';
 import { play, unlockAudio } from './audio.js';
+import { resIcon, costHtml } from './icons.js';
 
 const $ = id => document.getElementById(id);
 const fmt = v => Math.floor(v + 1e-6).toLocaleString();
@@ -474,7 +475,7 @@ export class UI {
     $('city-btn').textContent = c ? `${c.name}${c.id === w.capital ? ' ★' : ''} ▸` : 'No city';
     if (c) {
       const RC = w.B.resourceColors;
-      $('stock').innerHTML = w.B.resources.map(k => `<span class="res${c.stock[k] < 1 ? ' zero' : ''}" title="${k}"><i style="background:${RC[k]}"></i>${fmt(c.stock[k])}</span>`).join('');
+      $('stock').innerHTML = w.B.resources.map(k => `<span class="res${c.stock[k] < 1 ? ' zero' : ''}" title="${k}: ${fmt(c.stock[k])}">${resIcon(k, RC, 16)}${fmt(c.stock[k])}</span>`).join('');
       const idle = w.units.filter(u => !u.dead && u.k === 'civ' && u.city === c.id && !u.job && !u.settler).length;
       $('pop').innerHTML = `👥 ${c.nCiv} <span class="muted">(${idle} idle)</span> · ⚔ ${c.nSol} · 🏠 ${c.housing}`;
       $('pop').title = 'Civilians (idle) · soldiers stationed · housing';
@@ -550,7 +551,7 @@ export class UI {
         const cost = ROADS[k] ? (k === 'sroad' ? w.B.roads.stone.cost : w.B.roads.dirt.cost) : d.cost;
         const afford = c && Object.entries(cost).every(([r, v]) => c.stock[r] >= v);
         const tip = [d.workers ? `${d.workers} workers` : '', d.out ? `→ ${Object.entries(d.out).map(([r, v]) => `${v} ${r}`).join(', ')}` : '', d.in ? `uses ${costText(d.in)}` : '', d.housing ? `+${d.housing} housing` : '', d.req ? `needs ${d.req.terrain ? d.req.terrain.join('/') : d.req.deposit.join('/') + ' deposit'}` : ''].filter(Boolean).join(' · ');
-        html += `<button class="bbtn" data-act="place" data-type="${k}" ${locked ? 'disabled' : ''} title="${esc(tip)}"><span class="nm"><i class="sw" style="background:${d.color || CC[d.cat] || '#999'}"></i>${d.name}</span><span class="ct ${afford ? '' : 'warn'}">${locked ? '🔒 research' : costText(cost) + (ROADS[k] || d.line ? ' /tile' : '')}</span></button>`;
+        html += `<button class="bbtn" data-act="place" data-type="${k}" ${locked ? 'disabled' : ''} title="${esc(tip)}"><span class="nm"><i class="sw" style="background:${d.color || CC[d.cat] || '#999'}"></i>${d.name}</span><span class="ct ${afford ? '' : 'warn'}">${locked ? '🔒 research' : costHtml(cost, w.B.resourceColors) + (ROADS[k] || d.line ? ' /tile' : '')}</span></button>`;
       }
       html += '</div>';
     }
@@ -566,7 +567,7 @@ export class UI {
     if (w.cities.length > 1) html += `<div class="row">${w.cities.map(o => `<button data-act="pick-city" data-id="${o.id}" class="${o.id === c.id ? 'on' : ''}">${esc(o.name)}</button>`).join('')}</div>`;
     html += '<h3>Stockpile</h3><table>';
     const rs = w.B.resources;
-    for (let i = 0; i < rs.length; i += 2) html += `<tr>${[rs[i], rs[i + 1]].map(k => k ? `<td><i class="sw" style="background:${RC[k]}"></i> ${k}</td><td class="n">${fmt(c.stock[k])}</td>` : '').join('')}</tr>`;
+    for (let i = 0; i < rs.length; i += 2) html += `<tr>${[rs[i], rs[i + 1]].map(k => k ? `<td>${resIcon(k, RC)} ${k}</td><td class="n">${fmt(c.stock[k])}</td>` : '').join('')}</tr>`;
     html += '</table>';
     html += `<h3>People</h3><div class="row">Civilians ${c.nCiv} · soldiers ${c.nSol} · housing ${c.housing} · food ${c.trend >= 0 ? '+' : ''}${Math.round(c.trend)}/day ${c.starving ? '<span class="bad">STARVING</span>' : ''}</div>`;
     html += '<h3>Job priorities</h3><p class="muted">Higher fills first; 0 = no workers.</p>';
@@ -603,7 +604,7 @@ export class UI {
       for (const r of w.routes) {
         const A = w.cityMap.get(r.from), B = w.cityMap.get(r.to);
         const n = w.units.filter(u => u.k === 'cart' && u.route === r.id && !u.dead).length;
-        html += `<tr><td><i class="sw" style="background:${RC[r.res]}"></i> ${r.res}</td><td>${esc(A ? A.name : '?')} → ${esc(B ? B.name : '?')}</td><td class="n">${r.min}/${r.max}</td><td class="n"><button data-act="route-carts" data-id="${r.id}" data-d="-1">−</button> ${n}/${r.carts} <button data-act="route-carts" data-id="${r.id}" data-d="1">+</button></td><td><button data-act="route-del" data-id="${r.id}">✕</button></td></tr>`;
+        html += `<tr><td>${resIcon(r.res, RC)} ${r.res}</td><td>${esc(A ? A.name : '?')} → ${esc(B ? B.name : '?')}</td><td class="n">${r.min}/${r.max}</td><td class="n"><button data-act="route-carts" data-id="${r.id}" data-d="-1">−</button> ${n}/${r.carts} <button data-act="route-carts" data-id="${r.id}" data-d="1">+</button></td><td><button data-act="route-del" data-id="${r.id}">✕</button></td></tr>`;
       }
       html += '</table>';
     }
