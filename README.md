@@ -6,6 +6,10 @@ Vanilla JavaScript (ES modules) and Canvas 2D. No framework, no build step, no s
 
 ## Run it
 
+**Windows:** double-click `Play.bat`. It starts a small local web server using the PowerShell built into Windows (no installs) and opens the game in your browser. Keep the black window open while you play; close it to stop.
+
+**Anywhere else:**
+
 ```sh
 npx serve .          # or: python3 -m http.server 8000
 ```
