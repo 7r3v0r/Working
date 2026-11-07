@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Squares of the Dead</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="view"></canvas>
+
+  <div id="topbar">
+    <div class="tb-group">
+      <button id="city-btn" class="city-btn" title="Cycle cities (Tab)">—</button>
+      <div id="stock" class="stock"></div>
+    </div>
+    <div class="tb-group">
+      <span id="pop" class="stat"></span>
+      <span id="food-trend" class="stat"></span>
+      <span id="rp" class="stat" title="Research points"></span>
+      <span id="clock" class="stat clock"></span>
+      <div class="speed" id="speed">
+        <button data-speed="0" title="Pause (Space)">❚❚</button>
+        <button data-speed="1" title="1x (1)">1x</button>
+        <button data-speed="2" title="2x (2)">2x</button>
+        <button data-speed="4" title="4x (3)">4x</button>
+      </div>
+    </div>
+    <div class="tb-group">
+      <button data-panel="build" title="Build menu (B)">Build</button>
+      <button data-panel="city" title="City panel (C)">City</button>
+      <button data-panel="logistics" title="Cart routes (L)">Logistics</button>
+      <button data-panel="research" title="Research (R)">Research</button>
+      <span class="sep"></span>
+      <button data-overlay="threat" title="Threat heatmap (T)">Threat</button>
+      <button data-overlay="borders" title="Region borders (Y)">Borders</button>
+      <button data-overlay="vision" title="Vision (V)">Vision</button>
+      <span class="sep"></span>
+      <button id="save-btn" title="Export save file">Save</button>
+      <button id="load-btn" title="Import save file">Load</button>
+      <button data-panel="help" title="Help (F1)">?</button>
+      <input type="file" id="load-file" accept=".json,application/json" hidden>
+    </div>
+  </div>
+
+  <div id="banner" hidden></div>
+  <div id="alerts"></div>
+  <div id="side" hidden></div>
+  <div id="selection" hidden></div>
+  <div id="mode-hint" hidden></div>
+  <div id="status"></div>
+  <div id="minimap-wrap"><canvas id="minimap"></canvas></div>
+  <div id="overlay" hidden></div>
+  <div id="loading">Raising the map…</div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

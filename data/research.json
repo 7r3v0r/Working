@@ -1,0 +1,25 @@
+{
+  "branches": [
+    { "id": "economy", "name": "Economy", "techs": [
+      { "id": "farmYield",   "name": "Better farm yield",  "cost": 60,  "desc": "Farms produce 30% more food." },
+      { "id": "stoneHouses", "name": "Stone houses",       "cost": 120, "desc": "Unlocks stone houses (+10 housing)." },
+      { "id": "smelterEff",  "name": "Smelter efficiency", "cost": 200, "desc": "Smelters work 40% faster." }
+    ]},
+    { "id": "military", "name": "Military", "techs": [
+      { "id": "cavalry",      "name": "Cavalry",           "cost": 80,  "desc": "Barracks can train cavalry (sword + horse)." },
+      { "id": "spearFormation","name": "Spear formation",  "cost": 140, "desc": "Spearmen deal +30% damage with 3+ spearmen nearby." },
+      { "id": "fastTraining", "name": "Faster training",   "cost": 200, "desc": "Training takes half as long." }
+    ]},
+    { "id": "defense", "name": "Defense", "techs": [
+      { "id": "stoneWalls",  "name": "Stone walls",  "cost": 70,  "desc": "Unlocks stone walls and gates (4x HP)." },
+      { "id": "stoneTowers", "name": "Stone towers", "cost": 130, "desc": "Unlocks stone towers." },
+      { "id": "catapult",    "name": "Catapult",     "cost": 200, "desc": "Unlocks catapults: area damage at range 20." },
+      { "id": "ballista",    "name": "Ballista",     "cost": 260, "desc": "Unlocks ballistae: piercing bolts at range 16." }
+    ]},
+    { "id": "logistics", "name": "Logistics", "techs": [
+      { "id": "stoneRoads",  "name": "Stone roads",  "cost": 80,  "desc": "Unlocks stone roads (3x speed)." },
+      { "id": "largeCarts",  "name": "Larger carts", "cost": 140, "desc": "Carts carry 40 units." },
+      { "id": "fastCarts",   "name": "Faster carts", "cost": 200, "desc": "Carts move 40% faster." }
+    ]}
+  ]
+}

@@ -1,0 +1,166 @@
+// Headless integration tests for the simulation. Run: node tools/test.mjs
+import { newWorld, loadDefs } from './headless.mjs';
+import { build, run, findSpot } from './scenario.mjs';
+import { serialize, deserialize, stateHash } from '../src/sim/save.js';
+import { canFound } from '../src/sim/logistics.js';
+
+let failed = 0;
+const results = [];
+function check(name, cond, detail = '') {
+  results.push(`${cond ? 'PASS' : 'FAIL'}  ${name}${detail ? ' — ' + detail : ''}`);
+  if (!cond) failed++;
+}
+const civs = (w, c) => w.units.filter(u => !u.dead && u.k === 'civ' && u.city === c.id).length;
+const killDormantNear = (w, x, y, r) => { for (const u of w.units) if (u.isZ && Math.hypot(u.x - x, u.y - y) < r) u.dead = true; };
+const starterTown = w => {
+  const c = w.cities[0];
+  for (const t of ['farm', 'farm', 'farm', 'house', 'house', 'house', 'house', 'granary', 'woodcutter']) build(w, t, c.cx, c.cy);
+  return c;
+};
+
+// 1. Economy: production, housing, growth
+{
+  const w = newWorld(11); const c = starterTown(w);
+  const food0 = c.stock.food;
+  run(w, 3000);
+  check('economy: farms raise food stock', c.stock.food > food0, `${food0} -> ${c.stock.food.toFixed(0)}`);
+  check('economy: houses add housing', c.housing >= 34, `housing ${c.housing}`);
+  run(w, 3000);
+  check('economy: population grows with free housing + surplus', civs(w, c) > 30, `civilians ${civs(w, c)}`);
+}
+
+// 2. One zombie in an undefended town converts it within ~60 s
+{
+  const w = newWorld(12); const c = starterTown(w);
+  run(w, 600);
+  for (const u of w.units) if (!u.isZ && u.k !== 'civ') u.dead = true;
+  run(w, 1);
+  w.spawn('zombie', c.cx + 6.5, c.cy + 6.5, { zg: { t: 'city', c: c.id } });
+  let t = 0;
+  while (t < 1200 && civs(w, c) > 0 && w.status.state === 'playing') { run(w, 10); t += 10; }
+  check('infection: one zombie converts an undefended town in ~60 s', civs(w, c) === 0 && t <= 900, `${(t * w.DT).toFixed(0)} s, civilians left ${civs(w, c)}`);
+}
+
+// 3. Settlers, carts, routes, starvation when a food route is cut
+{
+  const w = newWorld(13); const c = starterTown(w);
+  c.stock.wood += 600; c.stock.stone += 200; c.stock.food += 600;
+  run(w, 300);
+  const R = w.map.def.regions[1]; // Riverlands
+  const [sx, sy] = R.seed;
+  w.revealAround(sx, sy, 30);
+  killDormantNear(w, sx, sy, 80);
+  let spot = null;
+  for (let r = 0; r < 25 && !spot; r++) for (let a = 0; a < 16 && !spot; a++) {
+    const x = Math.round(sx + Math.cos(a / 16 * 6.283) * r), y = Math.round(sy + Math.sin(a / 16 * 6.283) * r);
+    if (canFound(w, c.id, x, y).ok) spot = [x, y];
+  }
+  const fr = spot ? w.cmd({ t: 'found', from: c.id, x: spot[0], y: spot[1] }) : { ok: false };
+  check('settlers: party sets out', fr.ok, fr.reason || '');
+  let t = 0;
+  while (t < 20000 && w.cities.length < 2) { run(w, 100); t += 100; killDormantNear(w, sx, sy, 60); }
+  const nc = w.cities[1];
+  check('settlers: new city founded after real travel time', !!nc, nc ? `${nc.name} after ${(t * w.DT / 60).toFixed(1)} min` : 'not founded');
+  if (nc) {
+    run(w, 400);
+    build(w, 'house', nc.cx, nc.cy);
+    const dep = build(w, 'cartdepot', c.cx, c.cy);
+    run(w, 200);
+    w.cmd({ t: 'buildCart', b: dep.id, n: 3 });
+    run(w, 600);
+    const carts = w.units.filter(u => u.k === 'cart').length;
+    check('carts: depot builds carts', carts >= 3, `${carts} carts`);
+    const rr = w.cmd({ t: 'route', res: 'food', from: c.id, to: nc.id, min: 50, max: 400, carts: 3 });
+    const before = nc.stock.food;
+    for (let i = 0; i < 40 && nc.stock.food <= before + 20; i++) { run(w, 500); killDormantNear(w, nc.cx, nc.cy, 70); }
+    check('carts: route delivers food between cities', nc.stock.food > before + 20, `${before.toFixed(0)} -> ${nc.stock.food.toFixed(0)}`);
+    w.cmd({ t: 'delRoute', id: rr.id });
+    nc.stock.food = 5;
+    let z = 0;
+    for (let i = 0; i < 60 && !z; i++) {
+      run(w, 100);
+      z = w.units.filter(u => u.isZ && !u.dormant && Math.hypot(u.x - nc.cx, u.y - nc.cy) < 40).length + w.buildings.filter(b => b.city === nc.id && b.infected).length;
+    }
+    check('starvation: cutting the food route makes zombies inside the city', z > 0, `${z} zombies/infected buildings in ${nc.name}`);
+  }
+}
+
+// 4. Barracks training, library research
+{
+  const w = newWorld(14); const c = starterTown(w);
+  c.stock.wood += 300; c.stock.stone += 100;
+  const bar = build(w, 'barracks', c.cx, c.cy);
+  const lib = build(w, 'library', c.cx, c.cy);
+  run(w, 200);
+  const sol0 = w.units.filter(u => !u.isZ && w.UD[u.k].soldier).length;
+  w.cmd({ t: 'train', b: bar.id, k: 'sword', n: 3 });
+  w.cmd({ t: 'train', b: bar.id, k: 'peasant', n: 2 });
+  run(w, 1200);
+  const sol1 = w.units.filter(u => !u.isZ && w.UD[u.k].soldier).length;
+  check('military: barracks converts civilians + equipment into soldiers', sol1 === sol0 + 5, `${sol0} -> ${sol1}, swords left ${c.stock.swords}`);
+  c.pri.research = 5;
+  run(w, 4000);
+  check('research: libraries produce research points', w.research.rp > 20, `${w.research.rp.toFixed(1)} RP`);
+  w.research.rp += 100;
+  const r = w.cmd({ t: 'research', id: 'stoneWalls' });
+  check('research: tech can be unlocked', r.ok && w.has('stoneWalls'));
+}
+
+// 5. Waves: undefended region is destroyed; save/load mid-wave is deterministic
+{
+  const w = newWorld(15); const c = starterTown(w);
+  for (const u of w.units) if (!u.isZ && u.k !== 'civ') u.dead = true;
+  let saved = null, det = null;
+  while (w.status.state === 'playing' && w.day() < 7) {
+    run(w, 200);
+    // isolate the wave: clear roaming packs/raids so only the wave attacks
+    if (!w.waves.list.some(v => v.spawned)) for (const u of w.units) if (u.isZ && !u.dormant) u.dead = true;
+    if (!saved && w.waves.list.some(v => v.spawned)) {
+      run(w, 600);
+      saved = serialize(w);
+      const w2 = deserialize(loadDefs(), saved, w.map);
+      run(w, 600); run(w2, 600);
+      det = [stateHash(w), stateHash(w2)];
+    }
+  }
+  check('waves: a wave is announced and spawned', !!saved);
+  check('waves: an undefended capital falls to a wave', w.status.state === 'lost', `${w.status.state} on day ${w.day()}: ${w.status.reason}`);
+  check('saves: export/import mid-wave resumes the identical state', det && det[0] === det[1], det ? det.join(' vs ') : 'no save');
+}
+
+// 6. Nests can be destroyed; destroying all wins
+{
+  const w = newWorld(16);
+  const ns = w.buildings.filter(b => b.type === 'nest');
+  const sq = [];
+  for (const n of ns) {
+    for (let i = 0; i < 60; i++) {
+      const u = w.spawn('cav', n.x - 8 + (i % 10), n.y - 10 + ((i / 10) | 0), { city: w.cities[0].id });
+      sq.push(u);
+    }
+  }
+  const { newSquad, addToSquad } = await import('../src/sim/military.js');
+  ns.forEach((n, k) => {
+    const s = newSquad(w, w.cities[0].id, 'Strike ' + k);
+    for (const u of sq.slice(k * 60, k * 60 + 60)) addToSquad(w, u, s);
+    w.cmd({ t: 'order', squads: [s.id], o: 'attack', b: n.id });
+  });
+  let t = 0;
+  while (w.status.state === 'playing' && t < 6000) { run(w, 100); t += 100; }
+  check('nests: destroying all nests wins the run', w.status.state === 'won', `${w.status.state} after ${(t * w.DT).toFixed(0)} s`);
+}
+
+// 7. Performance: 4,000 units
+{
+  const w = newWorld(17); const c = starterTown(w);
+  c.stock.food = 1e6;
+  for (let i = 0; i < 300; i++) w.spawn(['sword', 'archer', 'spear'][i % 3], c.cx - 15 + (i % 20), c.cy - 20 + ((i / 20) | 0), { city: c.id });
+  for (let i = 0; i < 4000 && w.units.length < 4100; i++) { const x = c.cx + 50 + (i % 60), y = c.cy - 30 + ((i / 60) | 0); if (w.tSpeed[w.tileOf(x, y)] > 0) w.spawn('zombie', x + 0.5, y + 0.5, { zg: { t: 'city', c: c.id } }); }
+  run(w, 50);
+  const t0 = performance.now(); run(w, 400); const ms = (performance.now() - t0) / 400;
+  check('perf: 4,000 units simulate fast enough for 4x (40 ticks/s)', ms < 12, `${ms.toFixed(2)} ms/tick with ${w.units.length} units`);
+}
+
+console.log(results.join('\n'));
+console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
+process.exit(failed ? 1 : 0);

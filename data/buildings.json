@@ -1,0 +1,51 @@
+{
+  "categoryColors": {
+    "housing": "#C8A97E",
+    "production": "#8E8E8E",
+    "military": "#4F6D8A",
+    "defense": "#4A4A4A",
+    "hall": "#D4AF37",
+    "nest": "#5A1414"
+  },
+  "types": {
+    "townhall":   { "name": "Town hall",       "label": "TH", "cat": "hall",       "w": 3, "h": 3, "hp": 1500, "cost": { "wood": 100, "stone": 50 }, "build": 30, "housing": 10, "drop": ["*"], "vision": 9, "infectResist": 150, "menu": false },
+    "house":      { "name": "House",           "label": "H",  "cat": "housing",    "w": 2, "h": 2, "hp": 150, "cost": { "wood": 20 }, "build": 10, "housing": 6, "menu": "Housing" },
+    "stonehouse": { "name": "Stone house",     "label": "SH", "cat": "housing",    "w": 2, "h": 2, "hp": 450, "cost": { "stone": 25, "wood": 5 }, "build": 18, "housing": 10, "research": "stoneHouses", "menu": "Housing" },
+
+    "farm":       { "name": "Farm",            "label": "F",  "cat": "production", "w": 4, "h": 4, "hp": 200, "cost": { "wood": 30 }, "build": 12, "job": "food", "workers": 4, "cycle": 50, "out": { "food": 3 }, "req": { "kind": "footprint", "terrain": ["grass"], "count": 12 }, "menu": "Food" },
+    "fishery":    { "name": "Fishery",         "label": "Fi", "cat": "production", "w": 2, "h": 2, "hp": 150, "cost": { "wood": 25 }, "build": 10, "job": "food", "workers": 2, "cycle": 35, "out": { "food": 4 }, "req": { "kind": "near", "terrain": ["river", "ford"], "radius": 2, "count": 3, "target": 12 }, "menu": "Food" },
+    "hunter":     { "name": "Hunter's lodge",  "label": "Hu", "cat": "production", "w": 2, "h": 2, "hp": 150, "cost": { "wood": 20 }, "build": 10, "job": "food", "workers": 2, "cycle": 45, "out": { "food": 2 }, "req": { "kind": "near", "terrain": ["forest"], "radius": 7, "count": 15, "target": 60 }, "menu": "Food" },
+    "granary":    { "name": "Granary",         "label": "Gr", "cat": "production", "w": 3, "h": 2, "hp": 250, "cost": { "wood": 30 }, "build": 10, "drop": ["food"], "menu": "Storage" },
+
+    "woodcutter": { "name": "Woodcutter",      "label": "W",  "cat": "production", "w": 2, "h": 2, "hp": 150, "cost": { "wood": 10 }, "build": 8, "job": "materials", "workers": 3, "cycle": 25, "out": { "wood": 4 }, "req": { "kind": "near", "terrain": ["forest"], "radius": 6, "count": 10, "target": 35 }, "menu": "Materials" },
+    "quarry":     { "name": "Quarry",          "label": "Q",  "cat": "production", "w": 3, "h": 3, "hp": 200, "cost": { "wood": 25 }, "build": 12, "job": "materials", "workers": 4, "cycle": 40, "out": { "stone": 3 }, "req": { "kind": "near", "deposit": ["stone"], "radius": 5, "count": 3, "target": 18 }, "menu": "Materials" },
+    "mine":       { "name": "Mine",            "label": "M",  "cat": "production", "w": 3, "h": 3, "hp": 200, "cost": { "wood": 35, "stone": 10 }, "build": 14, "job": "materials", "workers": 4, "cycle": 45, "out": { "ore": 3 }, "req": { "kind": "near", "deposit": ["ore"], "radius": 5, "count": 3, "target": 18 }, "menu": "Materials" },
+    "coalpit":    { "name": "Coal pit",        "label": "C",  "cat": "production", "w": 3, "h": 3, "hp": 200, "cost": { "wood": 25 }, "build": 12, "job": "materials", "workers": 3, "cycle": 40, "out": { "fuel": 3 }, "req": { "kind": "near", "deposit": ["coal"], "radius": 5, "count": 3, "target": 18 }, "menu": "Materials" },
+    "stockpile":  { "name": "Stockpile",       "label": "St", "cat": "production", "w": 3, "h": 3, "hp": 250, "cost": { "wood": 20 }, "build": 8, "drop": ["wood", "stone", "ore", "fuel", "iron"], "menu": "Storage" },
+
+    "charcoal":   { "name": "Charcoal burner", "label": "Ch", "cat": "production", "w": 2, "h": 2, "hp": 150, "cost": { "wood": 20 }, "build": 10, "job": "industry", "workers": 2, "cycle": 45, "in": { "wood": 3 }, "out": { "fuel": 1 }, "menu": "Industry" },
+    "smelter":    { "name": "Smelter",         "label": "Sm", "cat": "production", "w": 3, "h": 3, "hp": 250, "cost": { "wood": 30, "stone": 30 }, "build": 16, "job": "industry", "workers": 3, "cycle": 40, "in": { "ore": 2, "fuel": 1 }, "out": { "iron": 1 }, "menu": "Industry" },
+    "library":    { "name": "Library",         "label": "L",  "cat": "production", "w": 3, "h": 2, "hp": 200, "cost": { "wood": 40, "stone": 20 }, "build": 15, "job": "research", "workers": 3, "cycle": 20, "rp": 1, "menu": "Industry" },
+
+    "fletcher":   { "name": "Fletcher",        "label": "Fl", "cat": "production", "w": 2, "h": 2, "hp": 150, "cost": { "wood": 25 }, "build": 10, "job": "military", "workers": 2, "cycle": 30, "in": { "wood": 2 }, "out": { "bows": 1 }, "menu": "Weapons" },
+    "poleturner": { "name": "Poleturner",      "label": "Po", "cat": "production", "w": 2, "h": 2, "hp": 150, "cost": { "wood": 25 }, "build": 10, "job": "military", "workers": 2, "cycle": 35, "in": { "wood": 2, "iron": 1 }, "out": { "spears": 1 }, "menu": "Weapons" },
+    "blacksmith": { "name": "Blacksmith",      "label": "Bs", "cat": "production", "w": 2, "h": 2, "hp": 200, "cost": { "wood": 20, "stone": 20 }, "build": 12, "job": "military", "workers": 2, "cycle": 40, "in": { "iron": 1, "fuel": 1 }, "out": { "swords": 1 }, "menu": "Weapons" },
+    "armory":     { "name": "Armory",          "label": "Ar", "cat": "military",   "w": 2, "h": 2, "hp": 250, "cost": { "wood": 30 }, "build": 10, "drop": ["bows", "spears", "swords", "horses"], "menu": "Weapons" },
+    "stable":     { "name": "Stable",          "label": "Sb", "cat": "military",   "w": 3, "h": 3, "hp": 200, "cost": { "wood": 40 }, "build": 12, "job": "military", "workers": 2, "cycle": 50, "in": { "food": 4 }, "out": { "horses": 1 }, "menu": "Weapons" },
+    "barracks":   { "name": "Barracks",        "label": "Ba", "cat": "military",   "w": 3, "h": 3, "hp": 400, "cost": { "wood": 60, "stone": 20 }, "build": 15, "train": true, "menu": "Military" },
+    "cartdepot":  { "name": "Cart depot",      "label": "CD", "cat": "production", "w": 3, "h": 2, "hp": 250, "cost": { "wood": 50 }, "build": 12, "carts": true, "menu": "Military" },
+
+    "wall":       { "name": "Wood wall",       "label": "",   "cat": "defense",    "w": 1, "h": 1, "hp": 200, "cost": { "wood": 2 }, "build": 2, "defense": true, "blockH": true, "blockZ": true, "zCost": 12, "line": true, "color": "#6B5A45", "menu": "Defense" },
+    "swall":      { "name": "Stone wall",      "label": "",   "cat": "defense",    "w": 1, "h": 1, "hp": 800, "cost": { "stone": 3 }, "build": 4, "defense": true, "blockH": true, "blockZ": true, "zCost": 36, "line": true, "research": "stoneWalls", "menu": "Defense" },
+    "gate":       { "name": "Wood gate",       "label": "G",  "cat": "defense",    "w": 1, "h": 1, "hp": 300, "cost": { "wood": 6 }, "build": 4, "defense": true, "blockZ": true, "zCost": 14, "line": true, "color": "#8A6E4B", "menu": "Defense" },
+    "sgate":      { "name": "Stone gate",      "label": "G",  "cat": "defense",    "w": 1, "h": 1, "hp": 1000, "cost": { "stone": 8 }, "build": 6, "defense": true, "blockZ": true, "zCost": 40, "line": true, "research": "stoneWalls", "color": "#7D7A72", "menu": "Defense" },
+    "tower":      { "name": "Wood tower",      "label": "T",  "cat": "defense",    "w": 2, "h": 2, "hp": 400, "cost": { "wood": 40 }, "build": 12, "defense": true, "blockH": true, "blockZ": true, "zCost": 20, "garrison": 5, "vision": 15, "menu": "Defense" },
+    "stower":     { "name": "Stone tower",     "label": "T",  "cat": "defense",    "w": 2, "h": 2, "hp": 1500, "cost": { "stone": 50 }, "build": 20, "defense": true, "blockH": true, "blockZ": true, "zCost": 50, "garrison": 5, "vision": 15, "research": "stoneTowers", "menu": "Defense" },
+    "trap":       { "name": "Spike trap",      "label": "",   "cat": "defense",    "w": 1, "h": 1, "hp": 400, "cost": { "wood": 8 }, "build": 3, "defense": true, "trap": true, "dps": 15, "attackable": false, "line": true, "color": "#3A3A3A", "menu": "Defense" },
+    "ditch":      { "name": "Ditch",           "label": "",   "cat": "defense",    "w": 1, "h": 1, "hp": 1, "cost": {}, "build": 4, "defense": true, "ditch": true, "attackable": false, "line": true, "color": "#4E4232", "menu": "Defense" },
+    "catapult":   { "name": "Catapult",        "label": "Ca", "cat": "defense",    "w": 2, "h": 2, "hp": 300, "cost": { "wood": 60, "stone": 40, "iron": 10 }, "build": 18, "defense": true, "blockH": true, "blockZ": true, "zCost": 20, "job": "military", "workers": 2, "crew": true, "artillery": { "range": 20, "minRange": 5, "reload": 5, "damage": 45, "radius": 2.5 }, "research": "catapult", "menu": "Defense" },
+    "ballista":   { "name": "Ballista",        "label": "Bl", "cat": "defense",    "w": 2, "h": 2, "hp": 300, "cost": { "wood": 50, "iron": 15 }, "build": 16, "defense": true, "blockH": true, "blockZ": true, "zCost": 20, "job": "military", "workers": 2, "crew": true, "artillery": { "range": 16, "minRange": 0, "reload": 3, "damage": 35, "pierce": true, "width": 0.7 }, "research": "ballista", "menu": "Defense" },
+
+    "nest":       { "name": "Zombie nest",     "label": "N",  "cat": "nest",       "w": 4, "h": 4, "hp": 3000, "cost": {}, "build": 0, "blockH": true, "zombie": true, "vision": 0, "menu": false }
+  }
+}

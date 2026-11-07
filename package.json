@@ -1,0 +1,11 @@
+{
+  "name": "squares-of-the-dead",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Real-time colony-defense game in the browser: vanilla JS + Canvas 2D.",
+  "type": "module",
+  "scripts": {
+    "start": "npx serve .",
+    "test": "node tools/test.mjs"
+  }
+}

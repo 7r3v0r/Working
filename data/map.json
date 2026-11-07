@@ -1,0 +1,68 @@
+{
+  "name": "The Sundered March",
+  "width": 1000,
+  "height": 750,
+  "seed": 7331,
+  "baseGround": "#7A6A4F",
+  "start": [330, 400],
+  "regions": [
+    { "id": 0, "name": "Heartland", "seed": [330, 400], "tint": { "dh": 10, "ds": 0.06, "dl": 0.07 },
+      "terrain": { "forest": 0.16, "hills": 0.03, "marsh": 0.0, "barren": 0.04 },
+      "deposits": { "stone": 0.15, "ore": 0.0, "coal": 0.0 }, "dormant": 0 },
+    { "id": 1, "name": "Riverlands", "seed": [170, 640], "tint": { "dh": 38, "ds": 0.02, "dl": 0.03 },
+      "terrain": { "forest": 0.06, "hills": 0.0, "marsh": 0.07, "barren": 0.0 },
+      "deposits": { "stone": 0.0, "ore": 0.0, "coal": 0.0 }, "dormant": 3 },
+    { "id": 2, "name": "Northwood", "seed": [190, 160], "tint": { "dh": 62, "ds": -0.02, "dl": -0.06 },
+      "terrain": { "forest": 0.6, "hills": 0.05, "marsh": 0.02, "barren": 0.0 },
+      "deposits": { "stone": 0.2, "ore": 0.0, "coal": 0.0 }, "dormant": 5 },
+    { "id": 3, "name": "Greystone Hills", "seed": [480, 140], "tint": { "dh": 0, "ds": -0.17, "dl": 0.05 },
+      "terrain": { "forest": 0.05, "hills": 0.55, "marsh": 0.0, "barren": 0.05 },
+      "deposits": { "stone": 0.9, "ore": 0.3, "coal": 0.0 }, "dormant": 5 },
+    { "id": 4, "name": "Coalmarsh", "seed": [690, 410], "tint": { "dh": 95, "ds": -0.1, "dl": -0.1 },
+      "terrain": { "forest": 0.15, "hills": 0.03, "marsh": 0.5, "barren": 0.0 },
+      "deposits": { "stone": 0.0, "ore": 0.0, "coal": 0.9 }, "dormant": 7 },
+    { "id": 5, "name": "Ironreach", "seed": [820, 140], "tint": { "dh": -16, "ds": 0.0, "dl": -0.01 },
+      "terrain": { "forest": 0.1, "hills": 0.45, "marsh": 0.0, "barren": 0.05 },
+      "deposits": { "stone": 0.4, "ore": 0.9, "coal": 0.0 }, "dormant": 6 },
+    { "id": 6, "name": "Old Barrows", "seed": [550, 655], "tint": { "dh": -45, "ds": -0.1, "dl": -0.05 },
+      "terrain": { "forest": 0.05, "hills": 0.32, "marsh": 0.0, "barren": 0.3 },
+      "deposits": { "stone": 0.6, "ore": 0.6, "coal": 0.0 }, "dormant": 7 },
+    { "id": 7, "name": "Ashen Waste", "seed": [885, 560], "tint": { "dh": -30, "ds": 0.06, "dl": -0.15 },
+      "terrain": { "forest": 0.0, "hills": 0.15, "marsh": 0.0, "barren": 0.7 },
+      "deposits": { "stone": 0.0, "ore": 0.4, "coal": 0.0 }, "dormant": 9 }
+  ],
+  "rivers": [
+    { "name": "Great River", "width": 5, "points": [[560,0],[540,60],[500,130],[470,200],[440,270],[425,330],[435,390],[445,440],[420,500],[380,550],[310,600],[230,650],[170,700],[130,750]] },
+    { "name": "Reedwater", "width": 4, "points": [[0,540],[60,555],[120,570],[190,600],[245,640]] },
+    { "name": "Blackrun", "width": 4, "points": [[1000,320],[930,340],[870,360],[800,345],[740,320],[690,270],[660,200],[645,120],[655,50],[650,0]] }
+  ],
+  "fords": [
+    { "river": 0, "near": [500,130], "r": 3 },
+    { "river": 0, "near": [445,440], "r": 3 },
+    { "river": 0, "near": [310,600], "r": 3 },
+    { "river": 0, "near": [170,700], "r": 3 },
+    { "river": 1, "near": [60,555], "r": 3 },
+    { "river": 1, "near": [190,600], "r": 3 },
+    { "river": 2, "near": [870,360], "r": 3 },
+    { "river": 2, "near": [690,270], "r": 3 },
+    { "river": 2, "near": [645,120], "r": 3 },
+    { "river": 2, "near": [960,330], "r": 3 }
+  ],
+  "bridges": [
+    { "river": 0, "near": [428,345], "r": 2 },
+    { "river": 2, "near": [770,333], "r": 2 }
+  ],
+  "cliffs": [
+    { "width": 3, "points": [[420,40],[470,70],[515,58]] },
+    { "width": 3, "points": [[470,595],[520,572],[585,588]] },
+    { "width": 3, "points": [[790,450],[806,500],[832,545]] },
+    { "width": 2, "points": [[300,115],[332,170]] },
+    { "width": 3, "points": [[905,250],[950,270],[985,262]] }
+  ],
+  "nests": [
+    { "name": "Mire Hive", "pos": [722, 392], "strength": 1.0 },
+    { "name": "Barrow Pit", "pos": [585, 690], "strength": 1.0 },
+    { "name": "Ash Spire", "pos": [915, 470], "strength": 1.25 },
+    { "name": "Cinder Maw", "pos": [868, 682], "strength": 1.25 }
+  ]
+}
