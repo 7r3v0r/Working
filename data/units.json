@@ -1,11 +1,11 @@
 {
   "civ":     { "name": "Civilian",        "hp": 20,  "dps": 0, "range": 0, "speed": 1.0, "color": "#F2D16B", "size": 1,   "vision": 6 },
-  "peasant": { "name": "Peasant soldier", "hp": 30,  "dps": 3, "range": 1, "speed": 1.0, "color": "#A9C8F5", "size": 1,   "vision": 8, "cost": {}, "soldier": true },
-  "sword":   { "name": "Swordsman",       "hp": 80,  "dps": 8, "range": 1, "speed": 1.0, "color": "#3B82F6", "size": 1,   "vision": 8, "cost": { "swords": 1 }, "soldier": true },
-  "spear":   { "name": "Spearman",        "hp": 70,  "dps": 6, "range": 2, "targets": 2, "speed": 1.0, "color": "#2BB3C0", "size": 1, "vision": 8, "cost": { "spears": 1 }, "soldier": true, "formationBonus": 0.3 },
-  "archer":  { "name": "Archer",          "hp": 40,  "dps": 5, "range": 8, "towerBonus": 3, "ranged": true, "speed": 1.0, "color": "#7DD3FC", "size": 1, "vision": 9, "cost": { "bows": 1 }, "soldier": true },
-  "cav":     { "name": "Cavalry",         "hp": 110, "dps": 9, "range": 1, "speed": 2.5, "color": "#1E3A8A", "size": 1.5, "vision": 10, "cost": { "swords": 1, "horses": 1 }, "soldier": true, "research": "cavalry" },
-  "scout":   { "name": "Scout",           "hp": 30,  "dps": 0, "range": 0, "speed": 2.5, "color": "#FFFFFF", "size": 1.5, "vision": 20, "cost": { "horses": 1 }, "soldier": true },
+  "peasant": { "name": "Peasant soldier", "hp": 30,  "dps": 3, "range": 1, "speed": 1.5, "color": "#A9C8F5", "size": 1,   "vision": 8, "cost": {}, "soldier": true },
+  "sword":   { "name": "Swordsman",       "hp": 80,  "dps": 8, "range": 1, "speed": 1.5, "color": "#3B82F6", "size": 1,   "vision": 8, "cost": { "swords": 1 }, "soldier": true },
+  "spear":   { "name": "Spearman",        "hp": 70,  "dps": 6, "range": 2, "targets": 2, "speed": 1.5, "color": "#2BB3C0", "size": 1, "vision": 8, "cost": { "spears": 1 }, "soldier": true, "formationBonus": 0.3 },
+  "archer":  { "name": "Archer",          "hp": 40,  "dps": 5, "range": 8, "towerBonus": 3, "ranged": true, "speed": 1.5, "color": "#7DD3FC", "size": 1, "vision": 9, "cost": { "bows": 1 }, "soldier": true },
+  "cav":     { "name": "Cavalry",         "hp": 110, "dps": 9, "range": 1, "speed": 3.75, "color": "#1E3A8A", "size": 1.5, "vision": 10, "cost": { "swords": 1, "horses": 1 }, "soldier": true, "research": "cavalry" },
+  "scout":   { "name": "Scout",           "hp": 30,  "dps": 0, "range": 0, "speed": 3.75, "color": "#FFFFFF", "size": 1.5, "vision": 20, "cost": { "horses": 1 }, "soldier": true },
   "zombie":  { "name": "Zombie",          "hp": 50,  "dps": 5, "range": 1, "speed": 0.9, "nightSpeed": 1.1, "color": "#D64545", "size": 1 },
   "cart":    { "name": "Cart",            "hp": 60,  "dps": 0, "range": 0, "speed": 0.8, "color": "#8B5A2B", "size": 2, "vision": 6 }
 }
