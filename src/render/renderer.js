@@ -287,10 +287,10 @@ export class Renderer {
         ctx.fillRect(sx, sy, (p[3] || 1) * s, (p[4] || 1) * s);
       }
       ctx.globalAlpha = 1;
-      if (g.radius) {
-        const [cx, cy] = this.toScreen(g.radius[0], g.radius[1]);
-        ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.setLineDash([6, 6]);
-        ctx.beginPath(); ctx.arc(cx, cy, g.radius[2] * s, 0, 6.2832); ctx.stroke(); ctx.setLineDash([]);
+      for (const [rx, ry, rr, hot] of g.rings || []) {
+        const [cx, cy] = this.toScreen(rx, ry);
+        ctx.strokeStyle = hot ? 'rgba(242,209,107,0.7)' : 'rgba(255,255,255,0.35)'; ctx.setLineDash([6, 6]);
+        ctx.beginPath(); ctx.arc(cx, cy, rr * s, 0, 6.2832); ctx.stroke(); ctx.setLineDash([]);
       }
     }
     if (ui.box) {

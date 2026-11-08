@@ -1,6 +1,6 @@
 // DOM UI + input handling. Reads the world, issues commands through world.cmd().
-import { canPlace, canRoad, costText, lists, CATS, cityOfRegion } from '../sim/civ.js';
-import { canFound } from '../sim/logistics.js';
+import { canPlace, canRoad, costText, lists, CATS, cityOfRegion, campsOf } from '../sim/civ.js';
+import { canFound, partyCost } from '../sim/logistics.js';
 import { squadETA, trainTime } from '../sim/military.js';
 import { regionThreat } from '../sim/zombies.js';
 import { TER_NAMES, DEP_NAMES } from '../sim/map.js';
@@ -18,6 +18,8 @@ const EXTRA_DESC = {
   road: 'Doubles movement speed for everyone, zombies included. Drawn across a river it becomes a bridge.',
   sroad: 'Triples movement speed for everyone, zombies included.',
 };
+// Build-bar cards that send a settler party instead of placing a building.
+const FOUND_CARDS = { found: 'city', foundcamp: 'camp' };
 const TRAINABLE = ['peasant', 'sword', 'spear', 'archer', 'cav', 'scout'];
 
 // 4-connected line so walls never leave diagonal gaps.
@@ -275,7 +277,7 @@ export class UI {
     const name = m.type ? (this.w.BD[m.type] || ROADS[m.type]).name : '';
     if (m.k === 'build') t = `Placing ${name} — click to place (Shift keeps placing), right-click/Esc to cancel`;
     if (m.k === 'line') t = `Drawing ${name} — drag to draw a line, right-click/Esc to finish`;
-    if (m.k === 'found') t = 'Found settlement — click a spot in an explored, unsettled region';
+    if (m.k === 'found') t = m.kind === 'camp' ? `Found camp — click a spot in ${esc(this.curCity() ? this.curCity().name : 'your city')}'s region, outside its build area` : 'Found settlement — click a spot in an explored, unsettled region';
     if (m.k === 'amove') t = 'Attack-move — click a destination';
     if (m.k === 'patrol') t = 'Patrol — click the far end of the route';
     if (m.k === 'garrison') t = 'Garrison — click a tower (archers go inside)';
@@ -294,7 +296,7 @@ export class UI {
   found() {
     const m = this.mode;
     if (m.x === undefined) return;
-    const r = this.w.cmd({ t: 'found', from: this.city, x: m.x, y: m.y });
+    const r = this.w.cmd({ t: 'found', kind: m.kind || 'city', from: this.city, x: m.x, y: m.y });
     if (!r.ok) { this.flash(r.reason); return; }
     this.setMode(null);
   }
@@ -312,16 +314,20 @@ export class UI {
     const [wx, wy] = this.r.toWorld(this.mouse.x, this.mouse.y);
     const c = this.curCity();
     if (m.k === 'build' || m.k === 'found') {
-      const d = m.k === 'found' ? w.BD.townhall : w.BD[m.type];
+      const kind = m.kind || 'city';
+      const d = m.k === 'found' ? w.BD[kind === 'camp' ? 'camp' : 'townhall'] : w.BD[m.type];
       const x = Math.floor(wx - d.w / 2 + 0.5), y = Math.floor(wy - d.h / 2 + 0.5);
-      const r = m.k === 'found' ? canFound(w, this.city, x, y) : canPlace(w, m.type, x, y);
+      const r = m.k === 'found' ? canFound(w, this.city, x, y, kind) : canPlace(w, m.type, x, y);
       m.x = x; m.y = y;
-      let radius = null;
-      if (m.k === 'build') {
-        const pc = cityOfRegion(w, w.regionAt(x + d.w / 2, y + d.h / 2)) || c;
-        if (pc) radius = [pc.cx, pc.cy, d.placeRadius || (d.defense ? w.B.city.defenseRadius : w.B.city.buildRadius)];
+      const rings = [];
+      const pc = m.k === 'build' ? cityOfRegion(w, w.regionAt(x + d.w / 2, y + d.h / 2)) || c : kind === 'camp' ? c : null;
+      if (pc) {
+        const pd = m.k === 'build' ? d : w.BD.house;
+        rings.push([pc.cx, pc.cy, pd.placeRadius || (pd.defense ? w.B.city.defenseRadius : w.B.city.buildRadius)]);
+        for (const b of campsOf(w, pc)) rings.push([b.x + b.w / 2, b.y + b.h / 2, w.B.camp.radius]);
       }
-      this.ghost = { tiles: [[x, y, r.ok, d.w, d.h]], reason: r.ok ? '' : r.reason, radius };
+      if (m.k === 'found' && kind === 'camp') rings.push([x + d.w / 2, y + d.h / 2, w.B.camp.radius, true]);
+      this.ghost = { tiles: [[x, y, r.ok, d.w, d.h]], reason: r.ok ? '' : r.reason, rings };
     } else {
       const [tx, ty] = [Math.floor(wx), Math.floor(wy)];
       const pts = m.start ? lineTiles(m.start[0], m.start[1], tx, ty) : [[tx, ty]];
@@ -361,7 +367,7 @@ export class UI {
         this.setMode(line ? { k: 'line', type, start: null } : { k: 'build', type });
         break;
       }
-      case 'found': this.setMode(this.mode && this.mode.k === 'found' ? null : { k: 'found' }); break;
+      case 'found': { const kind = ds.kind || 'city'; this.setMode(this.mode && this.mode.k === 'found' && (this.mode.kind || 'city') === kind ? null : { k: 'found', kind }); break; }
       case 'research': res(w.cmd({ t: 'research', id: ds.id })); break;
       case 'train': if (b) res(w.cmd({ t: 'train', b: b.id, k: ds.k, n: +ds.n })); break;
       case 'qcancel': if (b) res(w.cmd({ t: 'cancelTrain', b: b.id, i: +ds.i })); break;
@@ -446,7 +452,7 @@ export class UI {
 <kbd>Del</kbd><span>Demolish selected building</span>
 <kbd>Esc</kbd><span>Cancel / deselect</span>
 </div>
-<p class="muted">Tips: build farms and houses first; set job priorities in the City panel; found settlements (Settlement tab) to reach stone, ore and coal; link cities with roads and cart routes; research stone walls before the waves grow.</p>
+<p class="muted">Tips: build farms and houses first; set job priorities in the City panel; found settlements (Settlement tab) to reach stone, ore and coal, or camps to build further out in your own region; link cities with roads and cart routes; research stone walls before the waves grow.</p>
 <div class="actions"><button data-act="close-ov">Play</button><button data-act="newgame">New game</button><button data-act="load">Load save…</button></div>`);
   }
 
@@ -577,7 +583,7 @@ export class UI {
     for (const [k, d] of Object.entries(w.BD)) if (d.menu === this.bbTab) cards.push(k);
     if (this.bbTab === 'civic') {
       if (c && !c.hall) cards.unshift('townhall');
-      cards.push('road', 'sroad', 'found');
+      cards.push('road', 'sroad', 'found', 'foundcamp');
     }
     return cards;
   }
@@ -585,10 +591,10 @@ export class UI {
     const w = this.w;
     if (k === 'road') return w.B.roads.dirt.cost;
     if (k === 'sroad') return w.B.roads.stone.cost;
-    if (k === 'found') { const S = w.B.settlers, sc = { ...S.cost }; for (const r in S.rations) sc[r] = (sc[r] || 0) + S.rations[r]; return sc; }
+    if (FOUND_CARDS[k]) return partyCost(w, FOUND_CARDS[k]);
     return w.BD[k].cost;
   }
-  cardDef(k) { return k === 'found' ? { name: 'Found settlement', menu: 'civic' } : (this.w.BD[k] || ROADS[k]); }
+  cardDef(k) { return k === 'found' ? { name: 'Found settlement', menu: 'civic' } : k === 'foundcamp' ? { name: 'Found camp', menu: 'civic' } : (this.w.BD[k] || ROADS[k]); }
   renderBuildBar(force) {
     const w = this.w, c = this.curCity(), bar = $('buildbar');
     if (!bar) return;
@@ -603,7 +609,7 @@ export class UI {
       const d = this.cardDef(k), cost = this.cardCost(k);
       const locked = !!(d.research && !w.has(d.research));
       const afford = !!c && Object.entries(cost).every(([r, v]) => c.stock[r] >= v);
-      const active = !!this.mode && ((this.mode.type === k) || (k === 'found' && this.mode.k === 'found'));
+      const active = !!this.mode && ((this.mode.type === k) || (FOUND_CARDS[k] && this.mode.k === 'found' && (this.mode.kind || 'city') === FOUND_CARDS[k]));
       const n = d.line ? 0 : (counts[k] || 0);
       return { k, d, cost, locked, afford, active, n };
     });
@@ -612,7 +618,7 @@ export class UI {
     this.lastHtml.bbSig = sig;
     $('bb-cards').innerHTML = cards.map(o => {
       const line = ROADS[o.k] || o.d.line;
-      return `<button class="bb-card${o.locked ? ' locked' : ''}${o.afford ? '' : ' poor'}${o.active ? ' active' : ''}" data-act="${o.k === 'found' ? 'found' : 'place'}" data-type="${o.k}" data-tip="${o.k}">` +
+      return `<button class="bb-card${o.locked ? ' locked' : ''}${o.afford ? '' : ' poor'}${o.active ? ' active' : ''}" data-act="${FOUND_CARDS[o.k] ? 'found' : 'place'}"${FOUND_CARDS[o.k] ? ` data-kind="${FOUND_CARDS[o.k]}"` : ''} data-type="${o.k}" data-tip="${o.k}">` +
         (o.n ? `<span class="bb-count">${o.n}</span>` : '') +
         `<span class="bb-art">${buildingArt(o.k)}${o.locked ? '<span class="bb-lock">🔒</span>' : ''}</span>` +
         `<span class="bb-name">${esc(o.d.name)}</span>` +
@@ -627,7 +633,8 @@ export class UI {
     this.tipType = k;
     if (el) this.tipEl = el;
     const rows = [];
-    const descT = d.desc || EXTRA_DESC[k] || (k === 'found' ? `Send ${w.B.settlers.civilians} civilians with supplies to found a new city in an explored, unsettled region. Each region holds one settlement.` : '');
+    const descT = d.desc || EXTRA_DESC[k] || (k === 'found' ? `Send ${w.B.settlers.civilians} civilians with supplies to found a new city in an explored, unsettled region. Each region holds one settlement.`
+      : k === 'foundcamp' ? `Send ${w.B.camp.civilians} civilians to set up a camp in this city's own region. You can build within ${w.B.camp.radius} tiles of the camp, and it accepts every good. The civilians stay with the city.` : '');
     rows.push(`<div class="tip-desc">${esc(descT)}</div>`);
     const cost = this.cardCost(k);
     rows.push(`<div class="tip-row"><span class="muted">Cost</span> ${costHtml(cost, RC)}${ROADS[k] || d.line ? ' per tile' : ''}${k === 'road' ? ` · bridge ${costHtml(w.B.roads.bridgeCost, RC)}` : ''}</div>`);
@@ -643,7 +650,7 @@ export class UI {
     if (d.hp && !d.ditch) rows.push(`<div class="tip-row"><span class="muted">HP</span> ${d.hp}${d.w ? ` · ${d.w}×${d.h} tiles` : ''}</div>`);
     if (d.research && !w.has(d.research)) rows.push(`<div class="tip-row warn">🔒 Requires ${esc(this.techName(d.research))}</div>`);
     if (ROADS[k] || d.line) rows.push('<div class="tip-row muted">Drag to draw a line.</div>');
-    else if (k !== 'found') rows.push('<div class="tip-row muted">Click to place · Shift-click to place several.</div>');
+    else if (!FOUND_CARDS[k]) rows.push('<div class="tip-row muted">Click to place · Shift-click to place several.</div>');
     tip.innerHTML = `<div class="tip-title">${esc(d.name)}</div>${rows.join('')}`;
     tip.hidden = false;
     const card = this.tipEl && document.body.contains(this.tipEl) ? this.tipEl : document.querySelector(`.bb-card[data-tip="${k}"]`);
@@ -679,9 +686,8 @@ export class UI {
     }
     for (const [k, a] of Object.entries(agg)) html += `<tr><td>${w.BD[k].name}${a.build ? ` <span class="muted">(${a.build} building)</span>` : ''}</td><td class="n">${a.n}</td><td class="n">${a.need ? `${a.s}/${a.need}` : ''}</td></tr>`;
     html += '</table>';
-    const S = w.B.settlers;
-    const sc = { ...S.cost }; for (const k in S.rations) sc[k] = (sc[k] || 0) + S.rations[k];
-    html += `<h3>Expand</h3><p class="muted">Send ${S.civilians} civilians with ${costText(sc)} to found a settlement in another region.</p><div class="actions"><button data-act="found">Found settlement…</button>${c.hall ? `<button data-act="goto" data-x="${c.cx}" data-y="${c.cy}">Go to town hall</button>` : ''}</div>`;
+    const S = w.B.settlers, Cp = w.B.camp;
+    html += `<h3>Expand</h3><p class="muted">Send ${S.civilians} civilians with ${costText(partyCost(w, 'city'))} to found a settlement in another region, or ${Cp.civilians} civilians with ${costText(partyCost(w, 'camp'))} to set up a camp that extends this city's build area by ${Cp.radius} tiles.</p><div class="actions"><button data-act="found" data-kind="city">Found settlement…</button><button data-act="found" data-kind="camp">Found camp…</button>${c.hall ? `<button data-act="goto" data-x="${c.cx}" data-y="${c.cy}">Go to town hall</button>` : ''}</div>`;
     return html;
   }
 

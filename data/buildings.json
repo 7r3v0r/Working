@@ -9,6 +9,7 @@
   },
   "types": {
     "townhall":   { "name": "Town hall", "desc": "Heart of a city. Houses 10, accepts every good, and civilians shelter here when zombies come. Lose the capital's and the run ends.",       "label": "TH", "cat": "hall",       "w": 3, "h": 3, "hp": 1500, "cost": { "wood": 100, "stone": 50 }, "build": 30, "housing": 10, "drop": ["*"], "vision": 9, "infectResist": 150, "menu": false },
+    "camp":       { "name": "Camp", "desc": "An outpost of its city. Lets you build within 30 tiles of it and accepts every good.", "label": "Cp", "cat": "hall", "w": 2, "h": 2, "hp": 400, "cost": {}, "build": 0, "drop": ["*"], "vision": 7, "menu": false },
     "house":      { "name": "House", "desc": "Homes for 6 civilians. Cities only grow with free housing and a food surplus.",           "label": "H",  "cat": "housing",    "w": 2, "h": 2, "hp": 150, "cost": { "wood": 20 }, "build": 10, "housing": 6, "menu": "civic" },
     "stonehouse": { "name": "Stone house", "desc": "Sturdy homes for 10 civilians.",     "label": "SH", "cat": "housing",    "w": 2, "h": 2, "hp": 450, "cost": { "stone": 25, "wood": 5 }, "build": 18, "housing": 10, "research": "stoneHouses", "menu": "civic" },
 

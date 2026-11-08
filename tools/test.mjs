@@ -3,6 +3,8 @@ import { newWorld, loadDefs } from './headless.mjs';
 import { build, run, findSpot } from './scenario.mjs';
 import { serialize, deserialize, stateHash } from '../src/sim/save.js';
 import { canFound } from '../src/sim/logistics.js';
+import { canPlace } from '../src/sim/civ.js';
+import { TER } from '../src/sim/map.js';
 
 let failed = 0;
 const results = [];
@@ -12,6 +14,19 @@ function check(name, cond, detail = '') {
 }
 const civs = (w, c) => w.units.filter(u => !u.dead && u.k === 'civ' && u.city === c.id).length;
 const killDormantNear = (w, x, y, r) => { for (const u of w.units) if (u.isZ && Math.hypot(u.x - x, u.y - y) < r) u.dead = true; };
+// An explored, empty, buildable 2×2 spot near (x, y), ignoring build-area rules.
+const findOpen = (w, x0, y0) => {
+  for (let r = 3; r < 15; r++) for (let a = 0; a < 24; a++) {
+    const x = Math.round(x0 + Math.cos(a / 24 * 6.283) * r), y = Math.round(y0 + Math.sin(a / 24 * 6.283) * r);
+    let ok = true;
+    for (let yy = y; yy < y + 2; yy++) for (let xx = x; xx < x + 2; xx++) {
+      const t = yy * w.W + xx, ter = w.map.terrain[t];
+      if (!w.explored[t] || w.bAt[t] || ter === TER.RIVER || ter === TER.FORD || ter === TER.CLIFF) ok = false;
+    }
+    if (ok) return [x, y];
+  }
+  return [x0, y0];
+};
 const starterTown = w => {
   const c = w.cities[0];
   for (const t of ['farm', 'farm', 'farm', 'house', 'house', 'house', 'house', 'granary', 'woodcutter']) build(w, t, c.cx, c.cy);
@@ -82,6 +97,38 @@ const starterTown = w => {
       z = w.units.filter(u => u.isZ && !u.dormant && Math.hypot(u.x - nc.cx, u.y - nc.cy) < 40).length + w.buildings.filter(b => b.city === nc.id && b.infected).length;
     }
     check('starvation: cutting the food route makes zombies inside the city', z > 0, `${z} zombies/infected buildings in ${nc.name}`);
+  }
+}
+
+// 3b. Camps extend a city's build area within its own region
+{
+  const w = newWorld(17); const c = starterTown(w);
+  c.stock.wood += 300; c.stock.stone += 100; c.stock.food += 200;
+  run(w, 300);
+  w.revealAround(c.cx, c.cy, 110);
+  let spot = null;
+  for (let r = 65; r < 100 && !spot; r += 2) for (let a = 0; a < 24 && !spot; a++) {
+    const x = Math.round(c.cx + Math.cos(a / 24 * 6.283) * r), y = Math.round(c.cy + Math.sin(a / 24 * 6.283) * r);
+    if (canFound(w, c.id, x, y, 'camp').ok) spot = [x, y];
+  }
+  check('camp: a spot outside the build area is valid', !!spot);
+  const inside = findSpot(w, 'house', c.cx, c.cy);
+  const ir = canFound(w, c.id, inside[0], inside[1], 'camp');
+  check('camp: rejected inside the build area', ir.reason === 'Already inside the build area', ir.reason || 'accepted');
+  if (spot) {
+    const sx = spot[0] + 1, sy = spot[1] + 1;
+    killDormantNear(w, sx, sy, 60);
+    const before = canPlace(w, 'house', ...findOpen(w, sx, sy)).ok;
+    const wood0 = c.stock.wood, food0 = c.stock.food;
+    const fr = w.cmd({ t: 'found', kind: 'camp', from: c.id, x: spot[0], y: spot[1] });
+    check('camp: party sets out at the camp price', fr.ok && wood0 - c.stock.wood === w.B.camp.cost.wood, fr.reason || `wood ${wood0} -> ${c.stock.wood}, food ${food0.toFixed(0)} -> ${c.stock.food.toFixed(0)}`);
+    let t = 0;
+    while (t < 20000 && !w.buildings.some(b => b.type === 'camp' && !b.dead)) { run(w, 100); t += 100; killDormantNear(w, sx, sy, 60); }
+    const camp = w.buildings.find(b => b.type === 'camp' && !b.dead);
+    check('camp: built by the party for the source city', !!camp && camp.city === c.id && w.cities.length === 1, camp ? `after ${(t * w.DT / 60).toFixed(1)} min` : 'not built');
+    const [hx, hy] = findOpen(w, sx, sy);
+    const after = canPlace(w, 'house', hx, hy);
+    check('camp: houses can be placed near the camp', !before && after.ok && after.city === c, after.reason || '');
   }
 }
 

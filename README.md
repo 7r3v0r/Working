@@ -76,7 +76,8 @@ These are tuning or scope decisions. All the numbers live in `data/`.
 
 - **Map:** the layout is hand-authored in `data/map.json` (region seeds, rivers, fords, bridges, cliffs, nests, start). Fixed-seed noise fills in forest, hills, marsh and deposits, so the map is the same every run.
 - **Construction:** buildings build themselves over a set time once paid for. There are no builder jobs.
-- **Settlers:** a party carries 60 food in rations on top of the 100 wood + 50 stone. The goods become the new city's starting stock, and the settlers build its town hall for free. Without rations, a new city would starve before its first farm finished.
+- **Settlers:** a party carries 180 food in rations on top of the 300 wood + 150 stone. The goods become the new city's starting stock, and the settlers build its town hall for free. Without rations, a new city would starve before its first farm finished.
+- **Camps:** a smaller expansion (10 civilians, 100 wood + 50 stone + 60 food) inside a city's own region. The party builds a camp, and the city can then place buildings within 30 tiles of it. The camp accepts every good, the rations go into the city's stock, and the civilians stay with the city.
 - **Town hall breach:** a town hall takes 150 zombie damage before its sheltered civilians are infected. Other buildings are infected on the first hit. Without this, one stray zombie reaching the capital ended the run in seconds.
 - **Starting garrison:** you start with 3 swordsmen and 3 archers in addition to the 30 civilians.
 - **Timing of raids and packs:** nest raids start on day 3 and only target cities within 260 tiles of a nest. Roaming packs start on day 2.

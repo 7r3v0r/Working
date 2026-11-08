@@ -149,6 +149,11 @@ const ART = {
     `<path d="M22 14v3M25 22v3M22 30v3M26 36v2" stroke="#7E6E50" stroke-width="1.2"/>`,
   sroad: SH + `<path d="M15 41L20 7H28L33 41Z" fill="#B8B2A6"/><path d="M2 41L15 41L20 7L2 7Z M46 41L33 41L28 7L46 7Z" fill="#6E8F3A"/>` +
     [[19, 35], [25, 35], [20, 28], [26, 28], [21, 21], [26, 21], [22, 14], [25, 14]].map(([x, y]) => `<rect x="${x - 2.4}" y="${y - 2.6}" width="4.8" height="5.2" rx="1" fill="#D6D0C4" stroke="#8E887C" stroke-width=".6"/>`).join(''),
+  camp: SH + `<path d="M8 41L24 13L40 41Z" fill="#D9C8A0"/><path d="M24 13V41" stroke="#A8946A" stroke-width="1"/><path d="M19 41L24 31L29 41Z" fill="#5A3A1E"/>` +
+    `<path d="M24 13L21 7M24 13L27 7" stroke="#5A3A1E" stroke-width="1.4"/>`,
+  foundcamp: SH + `<path d="M4 41L17 18L30 41Z" fill="#D9C8A0"/><path d="M17 18V41" stroke="#A8946A" stroke-width="1"/><path d="M13 41L17 33L21 41Z" fill="#5A3A1E"/>` +
+    `<path d="M37 41V10" stroke="#5A3A1E" stroke-width="1.6"/><path d="M37 10h8l-2.5 3 2.5 3H37Z" fill="#7BC043"/>` +
+    `<circle cx="40" cy="39" r="2.2" fill="#F2D16B"/>`,
   found: SH + `<path d="M6 41L18 19L30 41Z" fill="#D9C8A0"/><path d="M18 19V41M18 41L14 34" stroke="#A8946A" stroke-width="1"/><path d="M15 41L18 33L21 41Z" fill="#5A3A1E"/>` +
     `<path d="M36 41V8" stroke="#5A3A1E" stroke-width="1.6"/><path d="M36 8h10l-3 3.5 3 3.5H36Z" fill="${GOLD}"/>` +
     `<circle cx="42" cy="39" r="2.4" fill="#F2D16B"/><circle cx="31" cy="39" r="2.4" fill="#F2D16B"/>`,

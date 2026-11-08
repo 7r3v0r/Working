@@ -416,12 +416,22 @@ function countAround(w, b, d, req) {
   return n;
 }
 
+// Camps of a city (finished, not infected). Each extends its city's build area by B.camp.radius.
+export function campsOf(w, c) {
+  return lists(w, c).all.filter(b => b.type === 'camp' && b.done && !b.infected);
+}
+export function nearCamp(w, c, x, y) {
+  const r = w.B.camp.radius;
+  return campsOf(w, c).some(b => Math.hypot(x - (b.x + b.w / 2), y - (b.y + b.h / 2)) <= r);
+}
+
 export function placementCity(w, type, x, y) {
   const d = w.BD[type];
   const cx = x + d.w / 2, cy = y + d.h / 2;
   let city = cityOfRegion(w, w.regionAt(cx, cy));
   const lim = d.placeRadius || (d.defense ? w.B.city.defenseRadius : w.B.city.buildRadius);
   if (city && Math.hypot(cx - city.cx, cy - city.cy) <= lim) return city;
+  if (city && nearCamp(w, city, cx, cy)) return city;
   if (d.defense) {
     let best = null, bd = Infinity;
     for (const c of w.cities) { const dd = Math.hypot(cx - c.cx, cy - c.cy); if (dd <= lim && dd < bd) { bd = dd; best = c; } }
@@ -446,7 +456,7 @@ export function canPlace(w, type, x, y) {
   const city = placementCity(w, type, x, y);
   if (!city) {
     const rc = cityOfRegion(w, w.regionAt(x + d.w / 2, y + d.h / 2));
-    return fail(rc ? 'Too far from the town centre' : 'No settlement in this region');
+    return fail(rc ? 'Too far from the town centre or a camp' : 'No settlement in this region');
   }
   if (type === 'townhall' && city.hall) return fail('This city already has a town hall');
   let yieldF = 1;

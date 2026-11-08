@@ -1,5 +1,5 @@
 // Carts, cart routes, settler parties.
-import { lists, hasStock, takeStock, costText, cityOfRegion, nearestDrop, createCity, unassign } from './civ.js';
+import { lists, hasStock, takeStock, costText, cityOfRegion, nearestDrop, createCity, unassign, placementCity } from './civ.js';
 import { formation } from './military.js';
 
 // ---------------- carts ----------------
@@ -120,13 +120,31 @@ export function updateCart(w, u) {
 }
 
 // ---------------- settlers ----------------
-export function canFound(w, from, x, y) {
-  const d = w.BD.townhall, S = w.B.settlers;
+// Two kinds of party: 'city' founds a new city in an unsettled region; 'camp' builds an
+// outpost in the source city's own region that extends its build area.
+const KIND = { city: { cfg: 'settlers', bd: 'townhall' }, camp: { cfg: 'camp', bd: 'camp' } };
+export function partyCost(w, kind = 'city') {
+  const S = w.B[KIND[kind].cfg], cost = { ...S.cost };
+  for (const k in S.rations) cost[k] = (cost[k] || 0) + S.rations[k];
+  return cost;
+}
+
+export function canFound(w, from, x, y, kind = 'city') {
+  if (!KIND[kind]) return { ok: false, reason: 'Unknown expansion' };
+  const d = w.BD[KIND[kind].bd], S = w.B[KIND[kind].cfg];
   const A = w.cityMap.get(from);
   if (!A) return { ok: false, reason: 'Select a source city' };
-  const region = w.regionAt(x + 1.5, y + 1.5);
-  if (cityOfRegion(w, region)) return { ok: false, reason: 'This region already has a settlement' };
-  if (w.parties.some(p => p.region === region)) return { ok: false, reason: 'Settlers are already heading there' };
+  const cx = x + d.w / 2, cy = y + d.h / 2;
+  const region = w.regionAt(cx, cy);
+  if (kind === 'city') {
+    if (cityOfRegion(w, region)) return { ok: false, reason: 'This region already has a settlement' };
+    if (w.parties.some(p => p.region === region && (p.kind || 'city') === 'city')) return { ok: false, reason: 'Settlers are already heading there' };
+  } else {
+    if (region !== A.region) return { ok: false, reason: `Camps go in ${A.name}'s own region` };
+    if (placementCity(w, 'camp', x, y) === A) return { ok: false, reason: 'Already inside the build area' };
+    const r = w.B.camp.radius;
+    if (w.parties.some(p => p.kind === 'camp' && Math.hypot(p.x + d.w / 2 - cx, p.y + d.h / 2 - cy) < r)) return { ok: false, reason: 'A camp party is already heading near here' };
+  }
   for (let yy = y; yy < y + d.h; yy++) for (let xx = x; xx < x + d.w; xx++) {
     if (!w.inMap(xx, yy)) return { ok: false, reason: 'Out of bounds' };
     const t = yy * w.W + xx;
@@ -135,20 +153,20 @@ export function canFound(w, from, x, y) {
   }
   const civs = w.units.filter(u => !u.dead && u.k === 'civ' && u.city === A.id && !u.settler);
   if (civs.length < S.civilians + 2) return { ok: false, reason: `Need ${S.civilians} spare civilians` };
-  const cost = { ...S.cost };
-  for (const k in S.rations) cost[k] = (cost[k] || 0) + S.rations[k];
+  const cost = partyCost(w, kind);
   if (!hasStock(A, cost)) return { ok: false, reason: `Needs ${costText(cost)}` };
   return { ok: true, A, region, cost, civs };
 }
 
 export function cmdFound(w, c) {
-  const r = canFound(w, c.from, c.x, c.y);
+  const kind = c.kind || 'city';
+  const r = canFound(w, c.from, c.x, c.y, kind);
   if (!r.ok) return r;
-  const S = w.B.settlers;
+  const S = w.B[KIND[kind].cfg], d = w.BD[KIND[kind].bd];
   takeStock(r.A, r.cost);
-  const party = { id: w.nextId++, from: r.A.id, region: r.region, x: c.x, y: c.y, members: [], cargo: { ...r.cost }, firstArrive: 0, waitMsg: 0 };
+  const party = { id: w.nextId++, kind, from: r.A.id, region: r.region, x: c.x, y: c.y, members: [], cargo: { ...r.cost }, firstArrive: 0, waitMsg: 0 };
   const civs = r.civs.slice().sort((a, b) => (a.job ? 1 : 0) - (b.job ? 1 : 0) || a.id - b.id).slice(0, S.civilians);
-  const slots = formation(civs.length, c.x + 1.5, c.y + 1.5, 1.4);
+  const slots = formation(civs.length, c.x + d.w / 2, c.y + d.h / 2, 1.4);
   civs.forEach((u, i) => {
     if (u.inside) w.exit(u);
     if (u.job) unassign(w, u);
@@ -158,14 +176,16 @@ export function cmdFound(w, c) {
     party.members.push(u.id);
   });
   w.parties.push(party);
-  w.event('info', `Settlers set out from ${r.A.name} for ${w.map.def.regions[r.region].name}`, c.x, c.y);
+  const where = w.map.def.regions[r.region].name;
+  w.event('info', kind === 'camp' ? `A camp party sets out from ${r.A.name}` : `Settlers set out from ${r.A.name} for ${where}`, c.x, c.y);
   return { ok: true };
 }
 
 function updateParty(w, p) {
+  const kind = p.kind || 'city', d = w.BD[KIND[kind].bd];
   const ms = p.members.map(id => w.unitMap.get(id)).filter(u => u && !u.dead);
   p.members = ms.map(u => u.id);
-  const name = w.map.def.regions[p.region].name;
+  const name = kind === 'camp' ? 'the new camp' : w.map.def.regions[p.region].name;
   if (!ms.length) {
     w.event('alert', `The settlers bound for ${name} were lost.`, p.x, p.y);
     w.parties.splice(w.parties.indexOf(p), 1);
@@ -185,15 +205,24 @@ function updateParty(w, p) {
   }
   if (arrived && !p.firstArrive) p.firstArrive = w.tick;
   if (!(arrived === ms.length || (p.firstArrive && w.tick - p.firstArrive > 600))) return;
-  const cx = p.x + 1.5, cy = p.y + 1.5;
+  const cx = p.x + d.w / 2, cy = p.y + d.h / 2;
   if (w.spatial.any(cx, cy, w.B.settlers.clearRadius, true, true)) {
     if (w.tick - p.waitMsg > 600) { p.waitMsg = w.tick; w.event('alert', `Settlers at ${name} wait: zombies nearby`, cx, cy); }
     return;
   }
-  if (cityOfRegion(w, p.region)) { w.event('alert', `${name} is already settled; settlers return home.`, cx, cy); disband(w, p, ms, w.cityMap.get(p.from)); return; }
+  const A = w.cityMap.get(p.from);
+  if (kind === 'city' && cityOfRegion(w, p.region)) { w.event('alert', `${name} is already settled; settlers return home.`, cx, cy); disband(w, p, ms, A); return; }
+  if (kind === 'camp' && (!A || cityOfRegion(w, p.region) !== A)) { w.event('alert', 'The camp party has no city to serve; it disbands.', cx, cy); disband(w, p, ms, A); return; }
   let blocked = false;
-  for (let y = p.y; y < p.y + 3; y++) for (let x = p.x; x < p.x + 3; x++) if (w.bAt[y * w.W + x] || w.hSpeed[y * w.W + x] <= 0) blocked = true;
+  for (let y = p.y; y < p.y + d.h; y++) for (let x = p.x; x < p.x + d.w; x++) if (w.bAt[y * w.W + x] || w.hSpeed[y * w.W + x] <= 0) blocked = true;
   if (blocked) { const t = w.passableNear(w.tileOf(cx + 4, cy), w.hSpeed, 8); if (t >= 0) { p.x = (t % w.W) - 1; p.y = ((t / w.W) | 0) - 1; } return; }
+  if (kind === 'camp') {
+    // Wood and stone build the camp; the rations go into the city's stock.
+    for (const k in w.B.camp.rations) A.stock[k] += w.B.camp.rations[k];
+    w.addBuilding('camp', p.x, p.y, A.id, true);
+    disband(w, p, ms, A);
+    return;
+  }
   const city = createCity(w, p.region, cx, cy, false);
   for (const k in p.cargo) city.stock[k] += p.cargo[k];
   const hall = w.addBuilding('townhall', p.x, p.y, city.id, false);
