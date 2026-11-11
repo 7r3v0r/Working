@@ -154,6 +154,27 @@ const ART = {
   foundcamp: SH + `<path d="M4 41L17 18L30 41Z" fill="#D9C8A0"/><path d="M17 18V41" stroke="#A8946A" stroke-width="1"/><path d="M13 41L17 33L21 41Z" fill="#5A3A1E"/>` +
     `<path d="M37 41V10" stroke="#5A3A1E" stroke-width="1.6"/><path d="M37 10h8l-2.5 3 2.5 3H37Z" fill="#7BC043"/>` +
     `<circle cx="40" cy="39" r="2.2" fill="#F2D16B"/>`,
+  watermill: SH + `<rect x="6" y="20" width="22" height="21" fill="${TAN}"/><path d="M4 21L17 9L30 21Z" fill="${ROOF}"/><rect x="14" y="31" width="6" height="10" fill="${DOOR}"/>` +
+    `<circle cx="36" cy="28" r="10" fill="none" stroke="${WOOD}" stroke-width="2.4"/><path d="M36 18V38M26 28H46M29 21L43 35M43 21L29 35" stroke="${WOOD}" stroke-width="1.6"/>` +
+    `<path d="M24 41Q36 37 47 41" stroke="#4A90C8" stroke-width="2.4" fill="none"/>`,
+  sawmill: SH + `<rect x="4" y="22" width="40" height="19" fill="${WOOD}"/><path d="M2 23L24 11L46 23Z" fill="${ROOF}"/>` +
+    `<circle cx="24" cy="31" r="7" fill="${METAL}"/><path d="M24 24l1.5 3h3l-2 2.5 1 3-3.5-1.5-3.5 1.5 1-3-2-2.5h3Z" fill="${STEEL}"/>` +
+    [8, 13, 35, 40].map(x => `<circle cx="${x}" cy="38" r="2.4" fill="${LOGEND}" stroke="#7A5530" stroke-width=".8"/>`).join(''),
+  masonyard: SH + `<rect x="5" y="30" width="14" height="11" fill="${STONE}"/>${bricks(5, 30, 14, 11)}<rect x="21" y="34" width="10" height="7" fill="${STONE_D}"/>` +
+    `<rect x="31" y="24" width="13" height="17" fill="${STONE}"/>${bricks(31, 24, 13, 17)}` +
+    `<path d="M10 26L20 14" stroke="${WOOD}" stroke-width="2.2"/><rect x="17" y="10" width="8" height="5" rx="1" fill="${SLATE}"/>`,
+  peatcutter: SH + `<path d="M4 41H44V34Q24 30 4 34Z" fill="#4E4232"/>` +
+    [[8, 26], [15, 24], [22, 26]].map(([x, y]) => `<rect x="${x}" y="${y}" width="6" height="8" fill="#3B2F22" stroke="#6A5640" stroke-width=".8"/>`).join('') +
+    `<path d="M36 40L36 14" stroke="${WOOD}" stroke-width="2.2"/><path d="M32 12H40L39 20H33Z" fill="${METAL}"/>`,
+  forge: SH + `<rect x="6" y="18" width="36" height="23" fill="${STONE_D}"/>${bricks(6, 18, 36, 23, '#5E5A53')}` +
+    `<rect x="31" y="6" width="7" height="13" fill="${SLATE}"/><path d="M14 41V30Q24 22 34 30V41Z" fill="#2A1A10"/>` +
+    `<path d="M18 41Q20 33 24 36Q27 31 30 41Z" fill="${FIRE}"/><path d="M21 41Q23 36 25 38Q27 35 28 41Z" fill="${FIRE_L}"/>`,
+  crypt: SH + `<path d="M8 41V22L24 10L40 22V41Z" fill="${STONE}"/>${bricks(8, 22, 32, 19)}` +
+    `<path d="M18 41V30Q24 24 30 30V41Z" fill="#1E1A22"/><path d="M24 11V4M21 7H27" stroke="${STONE_D}" stroke-width="2"/>` +
+    `<circle cx="24" cy="33" r="1.6" fill="#B8E0A0"/>`,
+  warcamp: SH + `<path d="M4 41L14 22L24 41Z" fill="#8A3A2A"/><path d="M24 41L34 22L44 41Z" fill="#8A3A2A"/>` +
+    `<path d="M14 22V41M34 22V41" stroke="#5A2418" stroke-width="1"/><path d="M24 41V8" stroke="${WOOD}" stroke-width="1.6"/>` +
+    `<path d="M24 8h12l-3 4 3 4H24Z" fill="${CLOTH}"/><path d="M18 38L30 26M30 38L18 26" stroke="${METAL}" stroke-width="1.8"/>`,
   found: SH + `<path d="M6 41L18 19L30 41Z" fill="#D9C8A0"/><path d="M18 19V41M18 41L14 34" stroke="#A8946A" stroke-width="1"/><path d="M15 41L18 33L21 41Z" fill="#5A3A1E"/>` +
     `<path d="M36 41V8" stroke="#5A3A1E" stroke-width="1.6"/><path d="M36 8h10l-3 3.5 3 3.5H36Z" fill="${GOLD}"/>` +
     `<circle cx="42" cy="39" r="2.4" fill="#F2D16B"/><circle cx="31" cy="39" r="2.4" fill="#F2D16B"/>`,

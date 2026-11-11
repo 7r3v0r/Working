@@ -26,6 +26,8 @@
   "civ": { "fleeRadius": 10, "safeRadius": 15 },
   "zombie": { "aggroDay": 8, "aggroNight": 11, "leash": 16, "riseDelay": 3, "separation": 0.55 },
   "infection": { "releaseDelay": 10, "clearHpPerOccupant": 15 },
+  "trade": { "interval": 10, "share": 0.25, "maxPerTrip": 40, "hallReach": 3, "foodDays": 2, "attackPause": 30,
+    "reserve": { "wood": 100, "stone": 60, "ore": 30, "fuel": 30, "iron": 20, "bows": 10, "spears": 10, "swords": 10, "horses": 5 } },
   "carts": { "capacity": 20, "largeCapacity": 40, "fastMult": 1.4, "cost": { "wood": 30 }, "buildTime": 15 },
   "training": { "time": 15 },
   "waves": { "firstDay": 4, "interval": 3, "baseSize": 40, "growth": 1.15, "nestFactorMin": 0.5, "planAhead": 1500 },
