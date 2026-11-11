@@ -319,6 +319,21 @@ const starterTown = w => {
   check('perf: 4,000 units simulate fast enough for 4x (40 ticks/s)', ms < 12, `${ms.toFixed(2)} ms/tick with ${w.units.length} units`);
 }
 
+// Many zombie groups heading to different places must not thrash the flow-field cache
+{
+  const w = newWorld(25);
+  const { roamTarget } = await import('../src/sim/zombies.js');
+  for (let p = 0; p < 40; p++) {
+    const g = roamTarget(w, 900 + p, 0), sx = 500 + (p % 8) * 30, sy = 150 + ((p / 8) | 0) * 30;
+    for (let k = 0; k < 4; k++) w.spawn('zombie', sx + k, sy, { zg: { t: 'tile', tile: g, pack: 900 + p, leg: 0 } });
+  }
+  run(w, 20);
+  const t0 = performance.now();
+  run(w, 100);
+  const ms = (performance.now() - t0) / 100;
+  check('perf: 40 zombie groups with different goals stay fast', ms < 8, `${ms.toFixed(2)} ms/tick`);
+}
+
 console.log(results.join('\n'));
 console.log(failed ? `\n${failed} FAILED` : '\nALL PASSED');
 process.exit(failed ? 1 : 0);

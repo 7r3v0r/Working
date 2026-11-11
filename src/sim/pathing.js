@@ -8,6 +8,7 @@ import { Heap } from './heap.js';
 
 export const CS = 8;
 export const MAXC = 16;
+const FIELD_CACHE = 48;
 const SQ2 = Math.SQRT2;
 
 export class Graph {
@@ -136,37 +137,63 @@ export class Graph {
     for (let i = 1; i < p.length; i++) c += this.edgeCost(p[i - 1], p[i]);
     return c;
   }
-  // Dijkstra flow field toward gn over the coarse graph.
+  // Compact node numbering + adjacency lists (CSR), rebuilt lazily when the graph changes.
+  // Flow fields are stored per compact node, which is ~15x smaller than per node slot.
+  _adjacency() {
+    if (this.adjVer === this.ver) return;
+    this.adjVer = this.ver;
+    const idx = this.idx || (this.idx = new Int32Array(this.NN));
+    idx.fill(-1);
+    let M = 0;
+    for (let c = 0; c < this.NC; c++) for (let li = 0; li < this.cnt[c]; li++) idx[c * MAXC + li] = M++;
+    const node = new Int32Array(M), start = new Int32Array(M + 1), adj = [], cost = [];
+    for (let c = 0; c < this.NC; c++) for (let li = 0; li < this.cnt[c]; li++) node[idx[c * MAXC + li]] = c * MAXC + li;
+    for (let i = 0; i < M; i++) {
+      start[i] = adj.length;
+      const n = node[i], nbs = this.neighbors(n);
+      for (let k = 0; k < nbs.length; k++) { adj.push(idx[nbs[k]]); cost.push(this.edgeCost(n, nbs[k])); }
+    }
+    start[M] = adj.length;
+    this.M = M; this.node = node; this.adjStart = start; this.adj = Int32Array.from(adj); this.adjCost = Float64Array.from(cost);
+  }
+  // Dijkstra flow field toward gn over the coarse graph. Kept in an LRU cache: many zombie
+  // groups can have different goals at once, and recomputing a field costs a full-map search.
   field(gn) {
+    this._adjacency();
     if (this.fieldVer !== this.ver) { this.fields.clear(); this.fieldVer = this.ver; }
     let f = this.fields.get(gn);
-    if (f) return f;
-    const dist = new Float32Array(this.NN).fill(Infinity);
-    const next = new Int32Array(this.NN).fill(-1);
-    const heap = new Heap(4096);
-    dist[gn] = 0; heap.push(gn, 0);
+    if (f) { this.fields.delete(gn); this.fields.set(gn, f); return f; }
+    const M = this.M, start = this.adjStart, adj = this.adj, cost = this.adjCost;
+    const dist = new Float32Array(M).fill(Infinity);
+    const next = new Int32Array(M).fill(-1);
+    const heap = this.fheap || (this.fheap = new Heap(4096));
+    heap.clear();
+    const g = this.idx[gn];
+    dist[g] = 0; heap.push(g, 0);
     while (heap.size > 0) {
       const pr = heap.p[0];
-      const n = heap.pop();
-      if (pr > dist[n]) continue;
-      const nbs = this.neighbors(n).slice();
-      for (let i = 0; i < nbs.length; i++) {
-        const m = nbs[i];
-        const nd = Math.fround(dist[n] + this.edgeCost(n, m));
-        if (nd < dist[m]) { dist[m] = nd; next[m] = n; heap.push(m, nd); }
+      const i = heap.pop();
+      if (pr > dist[i]) continue;
+      for (let k = start[i], e = start[i + 1]; k < e; k++) {
+        const j = adj[k];
+        const nd = Math.fround(dist[i] + cost[k]);
+        if (nd < dist[j]) { dist[j] = nd; next[j] = i; heap.push(j, nd); }
       }
     }
     f = { gn, dist, next, dirs: new Map() };
-    if (this.fields.size >= 16) this.fields.delete(this.fields.keys().next().value);
+    if (this.fields.size >= FIELD_CACHE) this.fields.delete(this.fields.keys().next().value);
     this.fields.set(gn, f);
     return f;
   }
+  // Distance from node n to the field's goal, and the next node on the way (-1 if none).
+  fieldDist(f, n) { return f.dist[this.idx[n]]; }
+  fieldNext(f, n) { const j = f.next[this.idx[n]]; return j < 0 ? -1 : this.node[j]; }
   // Per-tile direction inside node n toward the field's next node. Codes: 0 E, 1 W, 2 S, 3 N, -1 none.
   fieldDirs(f, n) {
     let d = f.dirs.get(n);
     if (d) return d;
     d = new Int8Array(CS * CS).fill(-1);
-    const m = f.next[n];
+    const m = this.fieldNext(f, n);
     f.dirs.set(n, d);
     if (m < 0) return d;
     const W = this.W, comp = this.comp;

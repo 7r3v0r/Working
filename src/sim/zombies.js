@@ -177,11 +177,11 @@ function hier(w, z, goalTile, spd) {
   const gn = zg.comp[gt];
   if (n === gn) { steerTo(w, z, gx, gy, spd); return; }
   const f = zg.field(gn);
-  if (f.dist[n] === Infinity) { steerTo(w, z, gx, gy, spd); return; }
+  if (zg.fieldDist(f, n) === Infinity) { steerTo(w, z, gx, gy, spd); return; }
   const dirs = zg.fieldDirs(f, n);
   const c = (n / MAXC) | 0, cx0 = (c % zg.CW) * CS, cy0 = ((c / zg.CW) | 0) * CS;
   const dc = dirs[(y - cy0) * CS + (x - cx0)];
-  if (dc < 0) { const ct = zg.cen[f.next[n]]; steerTo(w, z, ct % W + 0.5, ((ct / W) | 0) + 0.5, spd); return; }
+  if (dc < 0) { const ct = zg.cen[zg.fieldNext(f, n)]; steerTo(w, z, ct % W + 0.5, ((ct / W) | 0) + 0.5, spd); return; }
   const [dx, dy] = DIRS[dc];
   // aim at the far edge of the next tile for smoother motion
   const r = steerTo(w, z, x + dx + 0.5, y + dy + 0.5, spd);
