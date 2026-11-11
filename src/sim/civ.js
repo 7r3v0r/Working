@@ -58,7 +58,41 @@ export function hasStock(c, cost) {
   for (const k in cost) if ((c.stock[k] || 0) < cost[k] - 1e-9) return false;
   return true;
 }
-export function takeStock(c, cost) { for (const k in cost) c.stock[k] -= cost[k]; }
+export function takeStock(c, cost, w = null, label = '') {
+  for (const k in cost) { c.stock[k] -= cost[k]; if (w) flow(w, c, k, -cost[k], label); }
+}
+
+// Flow ledger for the UI (resource tooltips). Not saved and never read by the simulation.
+// Amounts accumulate per city in 10 s buckets; the last FLOW_BUCKETS are kept.
+export const FLOW_TICKS = 100, FLOW_BUCKETS = 12;
+export function flow(w, c, res, amt, label) {
+  if (!amt) return;
+  let L = w.flows.get(c.id);
+  if (!L) w.flows.set(c.id, L = { since: w.tick, cur: {}, hist: [] });
+  const k = res + '|' + label;
+  L.cur[k] = (L.cur[k] || 0) + amt;
+}
+export function rotateFlows(w) {
+  if (w.tick % FLOW_TICKS !== 0) return;
+  for (const L of w.flows.values()) {
+    L.hist.push(L.cur); L.cur = {};
+    if (L.hist.length > FLOW_BUCKETS) L.hist.shift();
+  }
+}
+// Totals per resource over the tracked window: { res: { net, in: {label: amt}, out: {label: amt} } } and the window length in seconds.
+export function flowSummary(w, c) {
+  const L = w.flows.get(c.id), out = {};
+  if (!L) return { secs: 0, res: out };
+  for (const m of [...L.hist, L.cur]) for (const k in m) {
+    const i = k.indexOf('|'), r = k.slice(0, i), label = k.slice(i + 1), a = m[k];
+    const e = out[r] || (out[r] = { net: 0, in: {}, out: {} });
+    e.net += a;
+    const side = a >= 0 ? e.in : e.out;
+    side[label] = (side[label] || 0) + Math.abs(a);
+  }
+  const secs = Math.min(w.tick - L.since, FLOW_TICKS * FLOW_BUCKETS + (w.tick % FLOW_TICKS)) * w.DT;
+  return { secs, res: out };
+}
 export function costText(cost) { return Object.entries(cost).map(([k, v]) => `${v} ${k}`).join(', ') || 'free'; }
 
 // ---------------- city-level update ----------------
@@ -112,6 +146,7 @@ function eat(w, c) {
   c.foodDebt += pop * B.food.perPersonPerDay * B.food.eatInterval / B.dayLength;
   const take = Math.min(c.stock.food, c.foodDebt);
   c.stock.food -= take; c.foodDebt -= take; c.consAcc += take;
+  flow(w, c, 'food', -take, 'Eaten');
   if (c.foodDebt > 0.5 && c.stock.food <= 0.001) {
     c.starveT += B.food.eatInterval;
     if (!c.starving) { c.starving = true; w.event('alert', `${c.name} is out of food — people are starving!`, c.cx, c.cy); }
@@ -311,7 +346,7 @@ function decide(w, u, job, jd) {
     if (jd.in && !u.hasIn && hasStock(c, jd.in)) {
       const dr = nearestDrop(w, c, Object.keys(jd.in)[0], u.x, u.y);
       if (dr) { go(w, u, dr, 'toFetch'); return; }
-      takeStock(c, jd.in); u.hasIn = true;
+      takeStock(c, jd.in, w, w.BD[job.type].name); u.hasIn = true;
     }
     go(w, u, job, 'toJob');
     return;
@@ -351,10 +386,10 @@ function arrive(w, u, b, job, jd) {
       w.enter(u, b); u.task = 'home'; return;
     case 'toDrop':
       deposit(w, u, c);
-      if (job && jd && jd.in && !u.hasIn && c && hasStock(c, jd.in)) { takeStock(c, jd.in); u.hasIn = true; go(w, u, job, 'toJob'); return; }
+      if (job && jd && jd.in && !u.hasIn && c && hasStock(c, jd.in)) { takeStock(c, jd.in, w, w.BD[job.type].name); u.hasIn = true; go(w, u, job, 'toJob'); return; }
       u.task = 'idle'; return;
     case 'toFetch':
-      if (job && jd && jd.in && c && hasStock(c, jd.in)) { takeStock(c, jd.in); u.hasIn = true; go(w, u, job, 'toJob'); return; }
+      if (job && jd && jd.in && c && hasStock(c, jd.in)) { takeStock(c, jd.in, w, w.BD[job.type].name); u.hasIn = true; go(w, u, job, 'toJob'); return; }
       u.task = 'idle'; return;
     case 'toJob':
       if (!job || job.id !== b.id) { u.task = 'idle'; return; }
@@ -378,6 +413,7 @@ function cycleTime(w, b, jd) {
 function deposit(w, u, c) {
   if (!u.carry || !c) { u.carry = null; return; }
   c.stock[u.carry.r] = (c.stock[u.carry.r] || 0) + u.carry.a;
+  flow(w, c, u.carry.r, u.carry.a, u.carry.src && w.BD[u.carry.src] ? w.BD[u.carry.src].name : 'Workers');
   if (u.carry.r === 'food') c.prodAcc += u.carry.a;
   u.carry = null;
 }
@@ -394,7 +430,7 @@ function work(w, u, job, jd) {
   const [res, amt0] = Object.entries(jd.out)[0];
   let amt = amt0 * (job.yieldF || 1);
   if (job.type === 'farm' && w.has('farmYield')) amt *= 1.3;
-  u.carry = { r: res, a: amt };
+  u.carry = { r: res, a: amt, src: job.type };
   u.hasIn = false;
   w.exit(u);
   u.task = 'idle';
@@ -472,7 +508,7 @@ export function canPlace(w, type, x, y) {
 export function cmdBuild(w, c) {
   const r = canPlace(w, c.type, c.x, c.y);
   if (!r.ok) return r;
-  takeStock(r.city, w.BD[c.type].cost);
+  takeStock(r.city, w.BD[c.type].cost, w, 'Construction');
   const b = w.addBuilding(c.type, c.x, c.y, r.city.id, false);
   b.yieldF = r.yieldF;
   if (c.type === 'townhall') r.city.hall = b.id;
@@ -506,13 +542,13 @@ export function cmdLine(w, c) {
     if (c.type === 'road' || c.type === 'sroad') {
       const r = canRoad(w, t, c.type, payer);
       if (!r.ok) { reason = r.reason; continue; }
-      takeStock(r.city, r.cost);
+      takeStock(r.city, r.cost, w, 'Roads');
       w.setRoad(t, r.val);
       placed++;
     } else {
       const r = canPlace(w, c.type, x, y);
       if (!r.ok) { reason = r.reason; continue; }
-      takeStock(r.city, w.BD[c.type].cost);
+      takeStock(r.city, w.BD[c.type].cost, w, 'Construction');
       w.addBuilding(c.type, x, y, r.city.id, false);
       placed++;
     }

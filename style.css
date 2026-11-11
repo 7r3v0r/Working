@@ -130,6 +130,9 @@ td.n { text-align: right; font-variant-numeric: tabular-nums; }
 .bb-count { position: absolute; top: 3px; right: 4px; font-size: 10px; background: #3a3d48; color: var(--text); border-radius: 8px; padding: 0 5px; font-variant-numeric: tabular-nums; }
 .bb-lock { position: absolute; right: -4px; bottom: -2px; font-size: 13px; }
 #bb-tip { position: fixed; z-index: 12; width: 270px; background: #1b1c22; border: 1px solid #4a4d58; border-radius: 6px; padding: 8px 10px; font-size: 12px; pointer-events: none; box-shadow: 0 6px 18px rgba(0,0,0,0.45); }
+#res-tip { position: fixed; z-index: 12; width: 250px; background: #1b1c22; border: 1px solid #4a4d58; border-radius: 6px; padding: 8px 10px; font-size: 12px; pointer-events: none; box-shadow: 0 6px 18px rgba(0,0,0,0.45); }
+.tip-sub { margin: 6px 0 2px; font-weight: 600; color: var(--muted); text-transform: uppercase; font-size: 10px; letter-spacing: .04em; }
+.tip-flow { justify-content: space-between; font-variant-numeric: tabular-nums; }
 .tip-title { font-weight: 700; font-size: 13px; margin-bottom: 3px; color: var(--accent); }
 .tip-desc { margin-bottom: 6px; }
 .tip-row { margin: 2px 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

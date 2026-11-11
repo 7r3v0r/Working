@@ -48,6 +48,7 @@ The suite covers the economy, infection, settlers, carts, starvation, training, 
 | B | Show or hide the build bar (Settlement, Industry and Military tabs along the bottom) |
 | C, L, R | City, Logistics and Research panels |
 | Tab | Cycle cities |
+| Hover a resource | Net rate per game minute over the last 2 minutes, with sources and uses |
 | T, Y, V | Threat heatmap, region borders and vision overlays |
 | Del, Esc | Demolish the selected building; cancel or deselect |
 

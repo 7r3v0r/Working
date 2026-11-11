@@ -382,7 +382,7 @@ export function updateBarracks(w, b) {
     if (!hasStock(city, d.cost)) { b.stall = `Needs ${costText(d.cost)}`; return; }
     const civ = pickRecruit(w, city);
     if (!civ) { b.stall = 'No civilians available'; return; }
-    takeStock(city, d.cost);
+    takeStock(city, d.cost, w, 'Training');
     consumeCiv(w, civ);
     b.training = k; b.trainT = trainTime(w); b.stall = '';
   }

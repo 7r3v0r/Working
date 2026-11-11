@@ -1,5 +1,5 @@
 // DOM UI + input handling. Reads the world, issues commands through world.cmd().
-import { canPlace, canRoad, costText, lists, CATS, cityOfRegion, campsOf } from '../sim/civ.js';
+import { canPlace, canRoad, costText, lists, CATS, cityOfRegion, campsOf, flowSummary } from '../sim/civ.js';
 import { canFound, partyCost } from '../sim/logistics.js';
 import { squadETA, trainTime } from '../sim/military.js';
 import { regionThreat } from '../sim/zombies.js';
@@ -99,6 +99,9 @@ export class UI {
     window.addEventListener('mouseup', () => { this.mmDrag = false; });
     document.addEventListener('click', e => this.onClick(e));
     document.addEventListener('mouseover', e => { const c = e.target.closest && e.target.closest('.bb-card'); if (c) this.showTip(c.dataset.tip, c); });
+    const stockEl = $('stock');
+    stockEl.addEventListener('mouseover', e => { const r = e.target.closest('.res'); if (r) { this.resTip = r.dataset.res; this.showResTip(); } });
+    stockEl.addEventListener('mouseleave', () => { this.resTip = null; $('res-tip').hidden = true; });
     document.addEventListener('mouseout', e => { const c = e.target.closest && e.target.closest('.bb-card'); if (c && !(e.relatedTarget && c.contains(e.relatedTarget))) this.hideTip(); });
     document.addEventListener('input', e => this.onInput(e));
     document.addEventListener('pointerdown', () => unlockAudio(), { once: false });
@@ -517,7 +520,8 @@ export class UI {
     $('city-btn').textContent = c ? `${c.name}${c.id === w.capital ? ' ★' : ''} ▸` : 'No city';
     if (c) {
       const RC = w.B.resourceColors;
-      $('stock').innerHTML = w.B.resources.map(k => `<span class="res${c.stock[k] < 1 ? ' zero' : ''}" title="${k}: ${fmt(c.stock[k])}">${resIcon(k, RC, 16)}${fmt(c.stock[k])}</span>`).join('');
+      $('stock').innerHTML = w.B.resources.map(k => `<span class="res${c.stock[k] < 1 ? ' zero' : ''}" data-res="${k}">${resIcon(k, RC, 16)}${fmt(c.stock[k])}</span>`).join('');
+      if (this.resTip) this.showResTip();
       const idle = w.units.filter(u => !u.dead && u.k === 'civ' && u.city === c.id && !u.job && !u.settler).length;
       $('pop').innerHTML = `👥 ${c.nCiv} <span class="muted">(${idle} idle)</span> · ⚔ ${c.nSol} · 🏠 ${c.housing}`;
       $('pop').title = 'Civilians (idle) · soldiers stationed · housing';
@@ -659,6 +663,39 @@ export class UI {
       const r = card.getBoundingClientRect(), tw = tip.offsetWidth;
       tip.style.left = Math.max(8, Math.min(window.innerWidth - tw - 8, r.left + r.width / 2 - tw / 2)) + 'px';
       tip.style.bottom = (window.innerHeight - r.top + 8) + 'px';
+    }
+  }
+  // Resource tooltip: net rate over the last couple of game minutes, plus sources and uses.
+  showResTip() {
+    const w = this.w, c = this.curCity(), k = this.resTip, tip = $('res-tip');
+    if (!c || !k) { tip.hidden = true; return; }
+    const RC = w.B.resourceColors, { secs, res } = flowSummary(w, c), e = res[k];
+    const perMin = a => a / secs * 60;
+    const num = (v, sign) => `${sign && v > 0 ? '+' : ''}${Math.abs(v) >= 10 ? Math.round(v) : v.toFixed(1)}`;
+    const rows = [];
+    const span = secs >= 60 ? `${Math.round(secs / 60 * 10) / 10} min` : `${Math.round(secs)} s`;
+    if (secs < 15) rows.push('<div class="tip-row muted">Measuring… check back in a few seconds.</div>');
+    else if (!e) rows.push(`<div class="tip-row muted">No change in the last ${span}.</div>`);
+    else {
+      const n = perMin(e.net), day = n * w.B.dayLength / 60;
+      rows.push(`<div class="tip-row"><span class="muted">Net</span> <b class="${n < -0.05 ? 'neg' : n > 0.05 ? 'pos' : ''}">${num(n, true)}/min</b> <span class="muted">(${num(day, true)}/day)</span></div>`);
+      const list = (title, m, sign) => {
+        const ent = Object.entries(m).filter(([, a]) => perMin(a) >= 0.05).sort((a, b) => b[1] - a[1]);
+        if (!ent.length) return;
+        rows.push(`<div class="tip-sub">${title}</div>`);
+        for (const [label, a] of ent) rows.push(`<div class="tip-row tip-flow"><span>${esc(label)}</span><span class="${sign}">${sign === 'neg' ? '−' : '+'}${num(perMin(a))}/min</span></div>`);
+      };
+      list('Sources', e.in, 'pos');
+      list('Uses', e.out, 'neg');
+    }
+    if (secs >= 15) rows.push(`<div class="tip-row muted">Per game minute, averaged over the last ${span}.</div>`);
+    tip.innerHTML = `<div class="tip-title">${resIcon(k, RC, 14)} ${esc(k[0].toUpperCase() + k.slice(1))} <span class="muted">${fmt(c.stock[k])} in ${esc(c.name)}</span></div>${rows.join('')}`;
+    tip.hidden = false;
+    const el = document.querySelector(`#stock .res[data-res="${k}"]`);
+    if (el) {
+      const r = el.getBoundingClientRect(), tw = tip.offsetWidth;
+      tip.style.left = Math.max(8, Math.min(window.innerWidth - tw - 8, r.left + r.width / 2 - tw / 2)) + 'px';
+      tip.style.top = (r.bottom + 8) + 'px';
     }
   }
   hideTip() { this.tipType = null; this.tipEl = null; $('bb-tip').hidden = true; }

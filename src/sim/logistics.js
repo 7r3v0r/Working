@@ -1,5 +1,5 @@
 // Carts, cart routes, settler parties.
-import { lists, hasStock, takeStock, costText, cityOfRegion, nearestDrop, createCity, unassign, placementCity } from './civ.js';
+import { lists, hasStock, takeStock, costText, cityOfRegion, nearestDrop, createCity, unassign, placementCity, flow } from './civ.js';
 import { formation } from './military.js';
 
 // ---------------- carts ----------------
@@ -17,7 +17,7 @@ export function updateDepot(w, b) {
   const C = w.B.carts;
   if (!b.training) {
     if (!hasStock(city, C.cost)) { b.stall = `Needs ${costText(C.cost)}`; return; }
-    takeStock(city, C.cost);
+    takeStock(city, C.cost, w, 'Carts');
     b.training = 'cart'; b.trainT = C.buildTime; b.stall = '';
   }
   b.trainT -= w.DT;
@@ -80,7 +80,7 @@ export function updateCart(w, u) {
         const B = r ? w.cityMap.get(r.to) : null;
         const drop = B ? (nearestDrop(w, B, u.cargo.r, u.x, u.y) || w.bMap.get(B.hall)) : null;
         if (drop) { goB(w, u, drop, 'deliver'); return; }
-        const c = w.cityMap.get(u.city); if (c) c.stock[u.cargo.r] += u.cargo.a; u.cargo = null;
+        const c = w.cityMap.get(u.city); if (c) { c.stock[u.cargo.r] += u.cargo.a; flow(w, c, u.cargo.r, u.cargo.a, 'Carts (returned)'); } u.cargo = null;
       }
       if (home && w.distToBuilding(u.x, u.y, home) > 2) { goB(w, u, home, 'return'); return; }
       const r = w.routes.find(r => r.id === u.route);
@@ -89,10 +89,11 @@ export function updateCart(w, u) {
       if (!A || !B) { u.route = 0; return; }
       const amt = Math.floor(Math.min(cartCap(w), A.stock[r.res] - r.min, r.max - B.stock[r.res]));
       if (amt < 1) { u.task = 'wait'; u.timer = 3; return; }
-      A.stock[r.res] -= amt;
-      u.cargo = { r: r.res, a: amt };
       const drop = nearestDrop(w, B, r.res, u.x, u.y) || w.bMap.get(B.hall);
-      if (!drop) { A.stock[r.res] += amt; u.cargo = null; u.task = 'wait'; u.timer = 5; return; }
+      if (!drop) { u.task = 'wait'; u.timer = 5; return; }
+      A.stock[r.res] -= amt;
+      flow(w, A, r.res, -amt, `Carts to ${B.name}`);
+      u.cargo = { r: r.res, a: amt };
       goB(w, u, drop, 'deliver');
       return;
     }
@@ -108,7 +109,11 @@ export function updateCart(w, u) {
       u.fails = 0;
       if (u.task === 'deliver' && u.cargo) {
         const c = w.cityMap.get(b.city);
-        if (c) c.stock[u.cargo.r] += u.cargo.a;
+        if (c) {
+          c.stock[u.cargo.r] += u.cargo.a;
+          const rt = w.routes.find(r => r.id === u.route), A = rt ? w.cityMap.get(rt.from) : null;
+          flow(w, c, u.cargo.r, u.cargo.a, A ? `Carts from ${A.name}` : 'Carts');
+        }
         u.cargo = null;
         const home = homeOf(w, u);
         if (home) { goB(w, u, home, 'return'); return; }
@@ -163,7 +168,7 @@ export function cmdFound(w, c) {
   const r = canFound(w, c.from, c.x, c.y, kind);
   if (!r.ok) return r;
   const S = w.B[KIND[kind].cfg], d = w.BD[KIND[kind].bd];
-  takeStock(r.A, r.cost);
+  takeStock(r.A, r.cost, w, kind === 'camp' ? 'Camp party' : 'Settlers');
   const party = { id: w.nextId++, kind, from: r.A.id, region: r.region, x: c.x, y: c.y, members: [], cargo: { ...r.cost }, firstArrive: 0, waitMsg: 0 };
   const civs = r.civs.slice().sort((a, b) => (a.job ? 1 : 0) - (b.job ? 1 : 0) || a.id - b.id).slice(0, S.civilians);
   const slots = formation(civs.length, c.x + d.w / 2, c.y + d.h / 2, 1.4);
@@ -218,13 +223,13 @@ function updateParty(w, p) {
   if (blocked) { const t = w.passableNear(w.tileOf(cx + 4, cy), w.hSpeed, 8); if (t >= 0) { p.x = (t % w.W) - 1; p.y = ((t / w.W) | 0) - 1; } return; }
   if (kind === 'camp') {
     // Wood and stone build the camp; the rations go into the city's stock.
-    for (const k in w.B.camp.rations) A.stock[k] += w.B.camp.rations[k];
+    for (const k in w.B.camp.rations) { A.stock[k] += w.B.camp.rations[k]; flow(w, A, k, w.B.camp.rations[k], 'Camp rations returned'); }
     w.addBuilding('camp', p.x, p.y, A.id, true);
     disband(w, p, ms, A);
     return;
   }
   const city = createCity(w, p.region, cx, cy, false);
-  for (const k in p.cargo) city.stock[k] += p.cargo[k];
+  for (const k in p.cargo) { city.stock[k] += p.cargo[k]; flow(w, city, k, p.cargo[k], 'Settlers'); }
   const hall = w.addBuilding('townhall', p.x, p.y, city.id, false);
   city.hall = hall.id;
   disband(w, p, ms, city);

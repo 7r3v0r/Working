@@ -38,6 +38,7 @@ export class World {
     this.events = [];
     this.fx = [];               // transient render effects (not saved)
     this.dirtyTiles = [];       // ground tiles changed since last render (not saved)
+    this.flows = new Map();     // per-city resource flow ledger for the UI (not saved)
     this.visionTick = 0;
     this.structVer = 1;
     this.allowVal = 0;
@@ -486,6 +487,7 @@ export class World {
     const units = this.units;
     for (let i = 0; i < units.length; i++) { const u = units[i]; u.px = u.x; u.py = u.y; }
     this.spatial.build(units);
+    Civ.rotateFlows(this);
     Civ.updateCities(this);
     for (let i = 0; i < units.length; i++) {
       const u = units[i];

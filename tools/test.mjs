@@ -3,7 +3,7 @@ import { newWorld, loadDefs } from './headless.mjs';
 import { build, run, findSpot } from './scenario.mjs';
 import { serialize, deserialize, stateHash } from '../src/sim/save.js';
 import { canFound } from '../src/sim/logistics.js';
-import { canPlace } from '../src/sim/civ.js';
+import { canPlace, flowSummary } from '../src/sim/civ.js';
 import { TER } from '../src/sim/map.js';
 import { Graph } from '../src/sim/pathing.js';
 
@@ -43,6 +43,20 @@ const starterTown = w => {
   check('economy: houses add housing', c.housing >= 34, `housing ${c.housing}`);
   run(w, 3000);
   check('economy: population grows with free housing + surplus', civs(w, c) > 30, `civilians ${civs(w, c)}`);
+}
+
+// 1b. Flow ledger accounts for every stock change (resource tooltips)
+{
+  const w = newWorld(18); const c = w.cities[0];
+  const s0 = { ...c.stock };
+  starterTown(w);
+  build(w, 'stable', c.cx, c.cy);
+  run(w, 1100);
+  const { secs, res } = flowSummary(w, c);
+  const off = w.B.resources.map(k => [k, (res[k] ? res[k].net : 0) - (c.stock[k] - s0[k])]).filter(([, d]) => Math.abs(d) > 0.01);
+  check('flows: ledger matches stock changes', !off.length, off.map(([k, d]) => `${k} off by ${d.toFixed(2)}`).join(', ') || `${secs.toFixed(0)} s window`);
+  const f = res.food || { in: {}, out: {} };
+  check('flows: food lists farms as a source and eating as a use', f.in.Farm > 0 && f.out.Eaten > 0, JSON.stringify({ in: Object.keys(f.in), out: Object.keys(f.out) }));
 }
 
 // 2. One zombie in an undefended town converts it within ~60 s
