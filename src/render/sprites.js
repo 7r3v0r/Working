@@ -110,6 +110,11 @@ const barrel = (r, x, y) => { r(x, y, 5, 7, TIMBER); r(x + 1, y, 3, 1, PALE); r(
 const sack = (r, x, y) => { ell(r, x + 3, y + 3, 3, 3, '#cdb891'); r(x + 2, y - 1, 2, 2, '#a8946a'); r(x + 4, y + 2, 2, 4, '#a8946a'); };
 const logs = (r, x, y, w = 10) => { for (let i = 0; i < 3; i++) { const yy = y - i * 3, xx = x + i, ww = w - i * 2; r(xx, yy, ww, 3, TIMBER); r(xx, yy, ww, 1, TIMBER_L); r(xx, yy, 2, 3, PALE); r(xx, yy + 1, 1, 1, TIMBER); } };
 const wheel = (r, cx, cy, rad = 3) => { ell(r, cx, cy, rad, rad, TIMBER_D); ell(r, cx, cy, rad - 1, rad - 1, PALE); r(cx - rad + 1, cy, rad * 2 - 1, 1, TIMBER_D); r(cx, cy - rad + 1, 1, rad * 2 - 1, TIMBER_D); r(cx, cy, 1, 1, STONE_DD); };
+const tent = (r, cx, y, h, C, CD) => {
+  for (let i = 0; i < h; i++) { r(cx - i * 0.8, y + i, 2 + i * 1.6, 1, C); r(cx + 1, y + i, 1 + i * 0.8, 1, CD); }
+  for (let i = 0; i < h / 2; i++) r(cx - i * 0.35, y + h / 2 + i, 2 + i * 0.7, 1, DARK);
+};
+const block = (r, x, y, w = 6, h = 4) => { r(x - 1, y - 1, w + 2, h + 2, O); r(x, y, w, h, STONE_LL); r(x, y + h - 1, w, 1, STONE_D); };
 // A roofed building: roof slab on top, wall below, centered door.
 function hut(r, x, y, w, h, o = {}) {
   const rh = o.roofH || Math.round(h * 0.48), wy = y + rh, wh = h - rh;
@@ -129,9 +134,7 @@ const BUILD = {
     r(17, 46, 14, 1, STONE_LL);
   },
   camp(r) {
-    const C = '#e0d3ae', CD = '#b8a87e';
-    for (let i = 0; i < 16; i++) { r(15 - i * 0.8, 7 + i, 2 + i * 1.6, 1, C); r(16, 7 + i, 1 + i * 0.8, 1, CD); }
-    for (let i = 0; i < 8; i++) r(15 - i * 0.35, 15 + i, 2 + i * 0.7, 1, DARK);
+    tent(r, 15, 7, 16, '#e0d3ae', '#b8a87e');
     flag(r, 15, 1, 6, GREEN_L);
     r(22, 28, 7, 2, TIMBER_D); r(24, 24, 3, 4, FIRE); r(25, 25, 1, 3, FIRE_L);
     crate(r, 2, 24, 5);
@@ -323,6 +326,56 @@ const BUILD = {
     line(r, 3, 15, 15, 21, CREAM); line(r, 28, 15, 16, 21, CREAM);
     r(15, 1, 2, 20, IRON); r(14, 2, 4, 2, STEEL); r(15, 0, 2, 2, STEEL);
   },
+  watermill(r) {
+    r(27, 37, 20, 10, WATER); for (const [x, y] of [[29, 40], [38, 43], [41, 39]]) r(x, y, 4, 1, WATER_L);
+    chimney(r, 20, 3); hut(r, 1, 8, 28, 39);
+    wheel(r, 37, 29, 10); for (const [x, y] of [[36, 17], [36, 39], [26, 28], [46, 28], [29, 21], [44, 21], [29, 36], [44, 36]]) r(x, y, 3, 3, TIMBER);
+    r(36, 28, 3, 3, STONE_DD);
+  },
+  sawmill(r) {
+    hut(r, 1, 3, 30, 28, { roof: WOOD_ROOF, wall: wallWood, win: false, doorW: 8 });
+    r(33, 22, 13, 3, TIMBER_L); r(34, 25, 2, 6, TIMBER); r(43, 25, 2, 6, TIMBER);
+    ell(r, 39, 18, 5, 5, IRON); ell(r, 39, 18, 3, 3, STEEL); r(39, 18, 1, 1, O); for (const [x, y] of [[39, 12], [33, 18], [45, 18], [35, 14], [43, 14]]) r(x, y, 1, 1, STEEL);
+    r(33, 5, 13, 2, PALE); r(34, 7, 11, 2, TIMBER_L); r(33, 9, 13, 2, PALE);
+  },
+  masonyard(r) {
+    r(1, 1, 46, 46, '#c2b9a4'); for (const [x, y] of [[26, 22], [12, 27], [40, 14], [30, 43]]) r(x, y, 3, 1, STONE);
+    hut(r, 3, 3, 20, 21, { roof: SLATE, wall: wallStone, win: false });
+    for (const [x, y] of [[27, 5], [34, 5], [41, 5], [30, 10], [37, 10]]) block(r, x, y, 5, 4);
+    wallStone(r, 4, 34, 22, 11, STONE_L); r(4, 30, 8, 4, STONE_L); r(4, 30, 8, 1, STONE_LL); r(3, 29, 10, 1, O); r(12, 30, 1, 4, O); r(12, 33, 15, 1, O);
+    r(34, 18, 2, 27, TIMBER); r(30, 44, 10, 2, TIMBER_D); line(r, 35, 18, 44, 22, TIMBER_L, 2); line(r, 35, 26, 40, 20, TIMBER_D);
+    r(44, 24, 1, 9, CREAM_D); block(r, 41, 33, 6, 5);
+  },
+  peatcutter(r) {
+    hut(r, 1, 5, 17, 26, { roof: '#5f6e3c', wall: wallWood, win: false });
+    const P = '#4e4232', PL = '#6e5e48';
+    for (const [x, y, w] of [[20, 24, 11], [21, 20, 9], [22, 16, 7]]) { r(x, y, w, 4, P); r(x, y, w, 1, PL); for (let xx = x + 3; xx < x + w; xx += 4) r(xx, y + 1, 1, 3, '#3a3024'); }
+    r(20, 28, 11, 3, '#2e2618'); r(20, 28, 11, 1, '#5a6e5a');
+    r(26, 4, 1, 8, TIMBER_L); r(25, 3, 3, 1, TIMBER); r(25, 12, 3, 3, IRON);
+  },
+  forge(r) {
+    for (const x of [7, 35]) { r(x, 1, 6, 9, STONE_D); r(x - 1, 0, 8, 2, STONE); bricks(r, x, 2, 6, 7, STONE_DD); }
+    roof(r, 1, 8, 46, 9, SLATE); wallStone(r, 3, 17, 42, 30, STONE_D);
+    r(16, 27, 16, 20, O); r(18, 29, 12, 18, FIRE); r(20, 34, 8, 13, FIRE_L); r(18, 29, 12, 1, '#c05a10');
+    r(6, 37, 8, 2, IRON); r(8, 39, 4, 3, '#4a4e56'); r(6, 42, 8, 2, '#3a3e46');
+    for (const x of [35, 38, 41]) { r(x, 24, 1, 14, STEEL); r(x - 1, 38, 3, 1, GOLD); r(x, 39, 1, 3, TIMBER); }
+  },
+  crypt(r) {
+    for (let i = 0; i < 8; i++) r(8 + i * 2, 15 - i, 32 - i * 4, 1, i ? STONE_L : STONE_D);
+    wallStone(r, 8, 16, 32, 31); r(6, 45, 36, 2, STONE_LL);
+    for (const x of [11, 34]) { r(x, 17, 3, 28, STONE_LL); r(x + 2, 17, 1, 28, STONE); }
+    r(18, 25, 12, 21, O); r(20, 27, 8, 19, DARK); r(22, 34, 1, 1, '#6fe0a0'); r(25, 34, 1, 1, '#6fe0a0');
+    r(22, 18, 4, 3, BONE); r(23, 21, 2, 1, BONE); r(22, 19, 1, 1, O); r(25, 19, 1, 1, O);
+    for (const [x, y] of [[2, 37], [42, 39]]) { r(x, y, 4, 8, STONE_D); r(x + 1, y - 1, 2, 1, STONE_D); r(x + 1, y + 2, 2, 1, STONE_LL); r(x + 1, y + 1, 1, 4, STONE_LL); }
+  },
+  warcamp(r) {
+    flag(r, 23, 1, 12, BLUE);
+    tent(r, 12, 8, 20, '#a04a34', '#7a3424'); tent(r, 34, 10, 20, '#a04a34', '#7a3424');
+    r(20, 43, 8, 2, TIMBER_D); r(22, 38, 4, 5, FIRE); r(23, 40, 2, 3, FIRE_L);
+    r(2, 38, 13, 1, TIMBER_D); r(2, 38, 1, 8, TIMBER); r(14, 38, 1, 8, TIMBER);
+    for (const x of [5, 8, 11]) { r(x, 33, 1, 12, TIMBER_L); r(x, 31, 1, 2, STEEL); }
+    for (const x of [34, 40]) { r(x - 1, 37, 6, 8, O); r(x, 38, 4, 5, BLUE); r(x + 1, 43, 2, 1, BLUE); r(x + 1, 39, 2, 2, GOLD); }
+  },
   nest(r) {
     const F = '#6a1c1c', FL = '#8e3030', FD = '#461010';
     ell(r, 32, 36, 29, 24, F); ell(r, 30, 30, 22, 16, FL); ell(r, 27, 26, 12, 7, '#a84040');
@@ -371,8 +424,9 @@ export function buildSprites(defs) {
     add('cargo', res, [paint(32, 32, r => { r(6, 8, 16, 5, c); r(8, 6, 12, 2, c); r(8, 6, 12, 1, L); r(6, 8, 2, 1, L); })]);
   }
   for (const type in defs.buildings.types) {
-    const d = defs.buildings.types[type], fn = BUILD[type];
-    if (fn) add('b', type, [paint(d.w * 16, d.h * 16, fn, !FLAT[type])]);
+    // a type with no painter of its own gets a plain hut with its category color as the roof
+    const d = defs.buildings.types[type], fn = BUILD[type] || ((r, W, H) => hut(r, 1, 2, W - 2, H - 3, { roof: d.color || defs.buildings.categoryColors[d.cat], win: false, doorH: Math.min(8, H >> 2), doorW: Math.min(5, W >> 2) }));
+    add('b', type, [paint(d.w * 16, d.h * 16, fn, !FLAT[type])]);
   }
   // shelf-pack: each entry is a row of frames, with a mirrored copy underneath for units
   const AW = 512, pos = []; let x = 0, y = 0, rowH = 0;
