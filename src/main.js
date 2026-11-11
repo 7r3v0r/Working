@@ -4,6 +4,7 @@ import { serialize, deserialize } from './sim/save.js';
 import { Renderer, Minimap } from './render/renderer.js';
 import { UI } from './ui/ui.js';
 import * as Store from './ui/storage.js';
+import { THEMES, savedTheme, applyTheme } from './render/themes.js';
 
 const AUTOSAVE_TICKS = 1200; // every 2 in-game minutes
 
@@ -55,6 +56,14 @@ const game = {
     try { await Store.putSave(this.saveMeta(true), serialize(w)); } catch (e) { console.warn('Autosave failed', e); }
     this.saving = false;
   },
+  // Visual style: recolors the data definitions, the ground canvas and the UI (see render/themes.js).
+  setStyle(id) {
+    this.style = id;
+    this.renderer.setTheme(applyTheme(this.defs, id));
+    document.getElementById('style-btn').textContent = `Style: ${THEMES[id].name}`;
+    if (this.minimap) this.minimap.draw(true);
+  },
+  cycleStyle() { const ids = Object.keys(THEMES); this.setStyle(ids[(ids.indexOf(this.style) + 1) % ids.length]); },
   load(json) {
     const w = deserialize(this.defs, json, this.map);
     this.setWorld(w);
@@ -74,6 +83,8 @@ async function main() {
   }
   await new Promise(r => setTimeout(r, 30));
   game.renderer = new Renderer(document.getElementById('view'));
+  game.setStyle(savedTheme());
+  document.getElementById('style-btn').onclick = () => game.cycleStyle();
   const params = new URLSearchParams(location.search);
   const seed = params.has('seed') ? +params.get('seed') : undefined;
   const w = new World(game.defs);

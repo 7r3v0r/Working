@@ -37,6 +37,15 @@ export function darken(hex, k = 0.65) {
   return `rgb(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)})`;
 }
 
+export function lighten(hex, k = 0.45) {
+  const [r, g, b] = hexToRgb(hex);
+  return `rgb(${Math.round(r + (255 - r) * k)},${Math.round(g + (255 - g) * k)},${Math.round(b + (255 - b) * k)})`;
+}
+// Perceived brightness, 0..1.
+export function luma(hex) { const [r, g, b] = hexToRgb(hex); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; }
+// 0xAABBGGRR, the layout of a Uint32Array over ImageData on little-endian machines.
+export function abgr(hex, a = 1) { const [r, g, b] = hexToRgb(hex); return ((Math.round(a * 255) << 24) | (b << 16) | (g << 8) | r) >>> 0; }
+
 // Terrain shading relative to the region tint: [dh, ds, dl]
 const TER_SHADE = [
   [0, 0, 0],          // grass
@@ -47,22 +56,40 @@ const TER_SHADE = [
 ];
 const FIXED = { 5: [59, 110, 143], 6: [107, 149, 173], 7: [46, 41, 37] };
 const DEP_COL = [null, [200, 200, 192], [160, 82, 45], [30, 30, 30]];
-export const ROAD_COL = [null, [156, 138, 104], [184, 178, 166]];
+const ROAD_COL = [null, [156, 138, 104], [184, 178, 166]];
 
-export function buildPalette(def) {
-  const [br, bg, bb] = hexToRgb(def.baseGround);
-  const [h0, s0, l0] = rgbToHsl(br, bg, bb);
-  return def.regions.map(r => {
-    const h = h0 + r.tint.dh, s = s0 + r.tint.ds, l = l0 + r.tint.dl;
-    return TER_SHADE.map(([dh, ds, dl]) => hslToRgb(h + dh, s + ds, l + dl));
-  });
+// Ground palette: pal.ter[region][terrain] plus the fixed colors. `g` is a style's ground block
+// (see themes.js); without one this is the classic palette derived from the map's base color.
+export function buildPalette(def, g) {
+  const pal = { fixed: FIXED, dep: DEP_COL, road: ROAD_COL, grain: null };
+  if (!g) {
+    const [h0, s0, l0] = rgbToHsl(...hexToRgb(def.baseGround));
+    pal.ter = def.regions.map(r => {
+      const h = h0 + r.tint.dh, s = s0 + r.tint.ds, l = l0 + r.tint.dl;
+      return TER_SHADE.map(([dh, ds, dl]) => hslToRgb(h + dh, s + ds, l + dl));
+    });
+    return pal;
+  }
+  const k = g.tint ?? 0.25, hsl = g.terrain.map(c => rgbToHsl(...hexToRgb(c)));
+  pal.ter = def.regions.map(r => hsl.map(([h, s, l]) => hslToRgb(h + r.tint.dh * k, s + r.tint.ds * k, l + r.tint.dl * k)));
+  pal.fixed = { 5: hexToRgb(g.water), 6: hexToRgb(g.ford), 7: hexToRgb(g.cliff) };
+  pal.dep = [null, ...g.deposit.map(hexToRgb)];
+  pal.road = [null, ...g.road.map(hexToRgb)];
+  if (g.grain) pal.grain = typeof g.grain === 'number' ? TER_SHADE.map(() => g.grain) : g.grain;
+  return pal;
 }
 
 export function tileColor(pal, map, road, t) {
-  if (road[t]) return ROAD_COL[road[t]];
+  if (road[t]) return pal.road[road[t]];
   const ter = map.terrain[t];
-  let c = FIXED[ter] || pal[map.region[t]][ter];
+  let c = pal.fixed[ter] || pal.ter[map.region[t]][ter];
   const d = map.deposit[t];
-  if (d) { const k = 0.45, dc = DEP_COL[d]; c = [c[0] * (1 - k) + dc[0] * k, c[1] * (1 - k) + dc[1] * k, c[2] * (1 - k) + dc[2] * k]; }
+  if (d) { const k = 0.45, dc = pal.dep[d]; return [c[0] * (1 - k) + dc[0] * k, c[1] * (1 - k) + dc[1] * k, c[2] * (1 - k) + dc[2] * k]; }
+  const gr = pal.grain && pal.grain[ter];
+  if (gr) { // fixed per-tile speckle, baked into the ground canvas
+    let h = Math.imul(t, 0x9E3779B1); h ^= h >>> 15;
+    const m = 1 + ((h & 255) / 255 - 0.5) * 2 * gr;
+    c = [Math.min(255, c[0] * m), Math.min(255, c[1] * m), Math.min(255, c[2] * m)];
+  }
   return c;
 }

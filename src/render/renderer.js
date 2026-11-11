@@ -1,5 +1,5 @@
 // Canvas 2D renderer: pre-rendered ground and fog (1 px per tile, scaled up), flat-colored squares for everything else.
-import { buildPalette, tileColor, hexToRgb, darken } from './colors.js';
+import { buildPalette, tileColor, darken, lighten, luma, abgr } from './colors.js';
 
 export class Renderer {
   constructor(canvas) {
@@ -9,22 +9,45 @@ export class Renderer {
     this.overlays = { threat: false, borders: false, vision: false };
     this.vw = 800; this.vh = 600; this.dpr = 1;
     this.buckets = new Map();
+    this.th = null;      // renderer colors of the active style (themes.js)
+    this.bcol = new Map(); // building fill -> [outline, label]
   }
 
-  setWorld(w) {
-    this.w = w;
-    const W = w.W, H = w.H;
-    this.pal = buildPalette(w.map.def);
-    const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
-    this.ground = mk(); this.gctx = this.ground.getContext('2d');
-    this.gimg = this.gctx.createImageData(W, H);
-    const d = this.gimg.data;
-    for (let t = 0; t < W * H; t++) {
+  // Switch style: repaint the ground and fog with the new colors. Everything else is read at draw time.
+  setTheme(th) {
+    this.th = th;
+    this.bcol.clear();
+    this.fogDark = abgr(th.fog); this.fogSeen = abgr(th.fog, th.fogSeen);
+    if (this.w) { this.paintGround(); this.forceFog = true; }
+  }
+  paintGround() {
+    const w = this.w, d = this.gimg.data, N = w.N;
+    this.pal = buildPalette(w.map.def, this.th.ground);
+    for (let t = 0; t < N; t++) {
       const c = tileColor(this.pal, w.map, w.road, t);
       d[t * 4] = c[0]; d[t * 4 + 1] = c[1]; d[t * 4 + 2] = c[2]; d[t * 4 + 3] = 255;
     }
     this.gctx.putImageData(this.gimg, 0, 0);
     w.dirtyTiles.length = 0;
+  }
+  // Outline and label colors for a building fill, computed once per color.
+  bStyle(fill) {
+    let v = this.bcol.get(fill);
+    if (!v) {
+      const th = this.th, k = th.stroke;
+      v = [k === 'dark' ? darken(fill, 0.6) : k === 'light' ? lighten(fill, 0.45) : k, th.label[luma(fill) > 0.6 ? 0 : 1]];
+      this.bcol.set(fill, v);
+    }
+    return v;
+  }
+
+  setWorld(w) {
+    this.w = w;
+    const W = w.W, H = w.H;
+    const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+    this.ground = mk(); this.gctx = this.ground.getContext('2d');
+    this.gimg = this.gctx.createImageData(W, H);
+    this.paintGround();
     this.fog = mk(); this.fctx = this.fog.getContext('2d');
     this.fimg = this.fctx.createImageData(W, H);
     this.f32 = new Uint32Array(this.fimg.data.buffer);
@@ -85,10 +108,10 @@ export class Renderer {
     const w = this.w;
     if (this.fogTick === w.visionTick && !this.forceFog) return;
     this.fogTick = w.visionTick; this.forceFog = false;
-    const vis = w.visible, exp = w.explored, f = this.f32, v = this.v32, N = w.N;
+    const vis = w.visible, exp = w.explored, f = this.f32, v = this.v32, N = w.N, dark = this.fogDark, seen = this.fogSeen;
     for (let t = 0; t < N; t++) {
       if (vis[t]) { f[t] = 0; v[t] = 0x3CFFE070; }
-      else { f[t] = exp[t] ? 0x99000000 : 0xFF000000; v[t] = 0; }
+      else { f[t] = exp[t] ? seen : dark; v[t] = 0; }
     }
     this.fctx.putImageData(this.fimg, 0, 0);
     if (this.overlays.vision) this.vctx.putImageData(this.vimg, 0, 0);
@@ -111,12 +134,12 @@ export class Renderer {
   }
 
   render(alpha, ui) {
-    const w = this.w, ctx = this.ctx, c = this.cam, s = c.s;
+    const w = this.w, ctx = this.ctx, c = this.cam, s = c.s, th = this.th;
     this.updateGround();
     this.updateFog();
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, this.vw, this.vh);
+    ctx.fillStyle = th.bg; ctx.fillRect(0, 0, this.vw, this.vh);
     const [x0, y0] = this.toWorld(0, 0), [x1, y1] = this.toWorld(this.vw, this.vh);
     const tx0 = Math.max(0, Math.floor(x0)), ty0 = Math.max(0, Math.floor(y0));
     const tx1 = Math.min(w.W, Math.ceil(x1)), ty1 = Math.min(w.H, Math.ceil(y1));
@@ -127,7 +150,7 @@ export class Renderer {
     this.drawUnits(alpha, x0 - 2, y0 - 2, x1 + 2, y1 + 2, ui);
     this.drawFx();
     ctx.drawImage(this.fog, tx0, ty0, sw, sh, dx, dy, sw * s, sh * s);
-    if (w.isNight()) { ctx.fillStyle = 'rgba(10,20,70,0.4)'; ctx.fillRect(0, 0, this.vw, this.vh); }
+    if (w.isNight()) { ctx.fillStyle = th.night; ctx.fillRect(0, 0, this.vw, this.vh); }
     if (this.overlays.vision) ctx.drawImage(this.vis, tx0, ty0, sw, sh, dx, dy, sw * s, sh * s);
     if (this.overlays.threat) { this.updateThreat(); ctx.globalAlpha = 0.55; ctx.drawImage(this.threatCv, tx0, ty0, sw, sh, dx, dy, sw * s, sh * s); ctx.globalAlpha = 1; }
     if (this.overlays.borders) ctx.drawImage(this.borders, tx0, ty0, sw, sh, dx, dy, sw * s, sh * s);
@@ -136,25 +159,38 @@ export class Renderer {
   }
 
   drawBuildings(tx0, ty0, tx1, ty1, ui) {
-    const w = this.w, ctx = this.ctx, s = this.cam.s, BD = w.BD, CC = w.defs.buildings.categoryColors;
+    const w = this.w, ctx = this.ctx, s = this.cam.s, BD = w.BD, CC = w.defs.buildings.categoryColors, th = this.th;
     const flash = (performance.now() / 250 | 0) % 2 === 0;
     const sel = ui && ui.sel.building;
     const labels = s >= 10;
-    if (labels) { ctx.font = `bold ${Math.min(13, s * 0.8) | 0}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; }
+    if (labels) { ctx.font = `bold ${Math.min(13, s * 0.8) | 0}px ${th.font}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; }
+    if (th.shadow && s >= 3) { // flat drop shadows: one path, one fill, under every building
+      const o = Math.min(4, s * 0.3);
+      ctx.fillStyle = '#000'; ctx.globalAlpha = th.shadow;
+      ctx.beginPath();
+      for (const b of w.buildings) {
+        if (b.dead || !b.done || b.x + b.w < tx0 || b.y + b.h < ty0 || b.x > tx1 || b.y > ty1 || !w.explored[b.y * w.W + b.x]) continue;
+        const [sx, sy] = this.toScreen(b.x, b.y);
+        ctx.rect(sx + o, sy + o, b.w * s, b.h * s);
+      }
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
     for (const b of w.buildings) {
       if (b.dead || b.x + b.w < tx0 || b.y + b.h < ty0 || b.x > tx1 || b.y > ty1) continue;
       if (!w.explored[b.y * w.W + b.x]) continue;
       const d = BD[b.type];
       const [sx, sy] = this.toScreen(b.x, b.y);
       const bw = b.w * s, bh = b.h * s;
-      let col = d.color || CC[d.cat];
-      if (b.infected) col = flash ? '#E02424' : '#7A1010';
-      else if (d.zombie) col = flash || w.tick - b.lastHit > 30 ? CC.nest : '#8E2020';
+      const base = d.color || CC[d.cat], bs = this.bStyle(base);
+      let col = base;
+      if (b.infected) col = th.infected[flash ? 0 : 1];
+      else if (d.zombie) col = flash || w.tick - b.lastHit > 30 ? CC.nest : th.nestHit;
       ctx.globalAlpha = b.done ? 1 : 0.45;
       ctx.fillStyle = col;
       ctx.fillRect(sx, sy, bw, bh);
       if (s >= 3) {
-        ctx.strokeStyle = b.id === sel ? '#FFFFFF' : darken(d.color || CC[d.cat], 0.6);
+        ctx.strokeStyle = b.id === sel ? th.sel : bs[0];
         ctx.lineWidth = b.id === sel ? 2 : 1;
         ctx.strokeRect(sx + 0.5, sy + 0.5, bw - 1, bh - 1);
       }
@@ -166,11 +202,11 @@ export class Renderer {
         ctx.fillStyle = b.hp / mhp > 0.5 ? '#6BCB4F' : '#E0A030'; ctx.fillRect(sx, sy - 3, bw * Math.max(0, b.hp / mhp), 2);
       }
       if (labels && d.label && b.w * s >= 14) {
-        ctx.fillStyle = d.cat === 'hall' || d.cat === 'housing' ? '#3A2A10' : '#F0F0F0';
+        ctx.fillStyle = bs[1];
         ctx.fillText(d.label, sx + bw / 2, sy + bh / 2);
       }
       if (d.garrison && b.inside.length && s >= 4) {
-        ctx.fillStyle = '#7DD3FC';
+        ctx.fillStyle = w.UD.archer.color;
         for (let i = 0; i < b.inside.length; i++) ctx.fillRect(sx + 2 + i * 3, sy + 2, 2, 2);
       }
     }
@@ -178,7 +214,7 @@ export class Renderer {
 
   drawUnits(alpha, x0, y0, x1, y1, ui) {
     const w = this.w, ctx = this.ctx, s = this.cam.s, UD = w.UD, W = w.W, vis = w.visible;
-    const B = this.buckets;
+    const B = this.buckets, dormant = this.th.dormant;
     for (const v of B.values()) v.length = 0;
     const selU = ui ? ui.sel.units : null;
     const sel = [];
@@ -188,7 +224,7 @@ export class Renderer {
       const x = u.px + (u.x - u.px) * alpha, y = u.py + (u.y - u.py) * alpha;
       if (x < x0 || x > x1 || y < y0 || y > y1) continue;
       if (u.isZ && !vis[(y | 0) * W + (x | 0)]) continue;
-      const col = u.isZ && u.dormant ? '#9E3A3A' : UD[u.k].color;
+      const col = u.isZ && u.dormant ? dormant : UD[u.k].color;
       let arr = B.get(col); if (!arr) { arr = []; B.set(col, arr); }
       const sz = (UD[u.k].size || 1);
       arr.push(x, y, sz);
@@ -209,7 +245,7 @@ export class Renderer {
       ctx.fill();
     }
     if (sel.length) {
-      ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1;
+      ctx.strokeStyle = this.th.sel; ctx.lineWidth = 1;
       ctx.beginPath();
       for (let i = 0; i < sel.length; i += 3) {
         const px = Math.max(minPx, sel[i + 2] * s * 0.9) + 2;
@@ -224,14 +260,14 @@ export class Renderer {
   }
 
   drawFx() {
-    const w = this.w, ctx = this.ctx, s = this.cam.s;
+    const w = this.w, ctx = this.ctx, s = this.cam.s, th = this.th;
     if (!w.fx.length) return;
     ctx.lineWidth = 1;
     for (const f of w.fx) {
       if (f.k === 'arrow' || f.k === 'bolt') {
         if (!w.visible[w.tileOf(f.x2, f.y2)] && !w.visible[w.tileOf(f.x1, f.y1)]) continue;
         const [a, b] = this.toScreen(f.x1, f.y1), [c, d] = this.toScreen(f.x2, f.y2);
-        ctx.strokeStyle = f.k === 'bolt' ? 'rgba(255,240,200,0.9)' : 'rgba(230,230,230,0.6)';
+        ctx.strokeStyle = f.k === 'bolt' ? th.bolt : th.arrow;
         ctx.lineWidth = f.k === 'bolt' ? 2 : 1;
         ctx.beginPath(); ctx.moveTo(a, b); ctx.lineTo(c, d); ctx.stroke();
       } else if (f.k === 'boom') {
@@ -244,31 +280,33 @@ export class Renderer {
   }
 
   drawRegionLabels() {
-    const w = this.w, ctx = this.ctx, s = this.cam.s;
+    const w = this.w, ctx = this.ctx, s = this.cam.s, th = this.th;
     if (s > 3 && !this.overlays.threat && !this.overlays.borders) return;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.strokeStyle = th.regionLabel[1];
     w.map.def.regions.forEach((r, i) => {
       const [cx, cy] = w.map.centroids[i];
       const [x, y] = this.toScreen(cx, cy);
       if (x < -100 || y < -40 || x > this.vw + 100 || y > this.vh + 40) return;
-      ctx.font = '600 13px system-ui, sans-serif';
-      ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillText(r.name, x + 1, y + 1);
-      ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText(r.name, x, y);
+      ctx.font = `600 13px ${th.font}`;
+      ctx.strokeText(r.name, x, y);
+      ctx.fillStyle = th.regionLabel[0]; ctx.fillText(r.name, x, y);
       if (this.overlays.threat) {
-        ctx.font = '600 11px system-ui, sans-serif';
-        ctx.fillStyle = '#FFD7A8'; ctx.fillText(`threat ${w.threat[i]}`, x, y + 15);
+        ctx.font = `600 11px ${th.font}`;
+        ctx.strokeText(`threat ${w.threat[i]}`, x, y + 15); ctx.fillText(`threat ${w.threat[i]}`, x, y + 15);
       }
     });
+    ctx.lineWidth = 1; ctx.lineJoin = 'miter';
   }
 
   drawUi(ui) {
     if (!ui) return;
-    const w = this.w, ctx = this.ctx, s = this.cam.s;
+    const w = this.w, ctx = this.ctx, s = this.cam.s, th = this.th;
     // squad order targets
     for (const id of ui.sel.squads) {
       const q = w.squadMap.get(id);
       if (!q || !q.order || q.order.x === undefined || q.order.t === 'hold') continue;
-      const col = t => t === 'amove' || t === 'attack' ? '#FF7A7A' : '#9FE3FF';
+      const col = t => th.order[t === 'amove' || t === 'attack' ? 1 : 0];
       const [x, y] = this.toScreen(q.order.x, q.order.y);
       ctx.strokeStyle = col(q.order.t);
       ctx.lineWidth = 1.5;
@@ -299,13 +337,13 @@ export class Renderer {
       ctx.globalAlpha = 1;
       for (const [rx, ry, rr, hot] of g.rings || []) {
         const [cx, cy] = this.toScreen(rx, ry);
-        ctx.strokeStyle = hot ? 'rgba(242,209,107,0.7)' : 'rgba(255,255,255,0.35)'; ctx.setLineDash([6, 6]);
+        ctx.strokeStyle = hot ? 'rgba(242,209,107,0.7)' : th.ring; ctx.setLineDash([6, 6]);
         ctx.beginPath(); ctx.arc(cx, cy, rr * s, 0, 6.2832); ctx.stroke(); ctx.setLineDash([]);
       }
     }
     if (ui.box) {
       const b = ui.box;
-      ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = th.sel; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
       ctx.strokeRect(Math.min(b.x0, b.x1) + 0.5, Math.min(b.y0, b.y1) + 0.5, Math.abs(b.x1 - b.x0), Math.abs(b.y1 - b.y0));
       ctx.setLineDash([]);
     }
@@ -327,7 +365,7 @@ export class Minimap {
     const now = performance.now();
     if (!force && now - this.last < 250) { this.drawCam(); return; }
     this.last = now;
-    const r = this.r, w = r.w, ctx = this.ctx;
+    const r = this.r, w = r.w, ctx = this.ctx, th = r.th, mc = th.mini;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.imageSmoothingEnabled = true;
     const sx = this.cw / w.W, sy = this.ch / w.H;
@@ -336,8 +374,8 @@ export class Minimap {
     for (const b of w.buildings) {
       if (b.dead || !w.explored[b.y * w.W + b.x]) continue;
       const d = w.BD[b.type];
-      if (d.line && d.cat === 'defense') ctx.fillStyle = '#333';
-      else ctx.fillStyle = b.infected ? '#F03030' : d.zombie ? '#B01818' : (d.color || CC[d.cat]);
+      if (d.line && d.cat === 'defense') ctx.fillStyle = mc.wall;
+      else ctx.fillStyle = b.infected || d.zombie ? mc.z : (d.color || CC[d.cat]);
       ctx.fillRect(b.x * sx, b.y * sy, Math.max(1.5, b.w * sx), Math.max(1.5, b.h * sy));
     }
     ctx.drawImage(r.fog, 0, 0, this.cw, this.ch);
@@ -348,13 +386,13 @@ export class Minimap {
       if (u.isZ) { if (vis[w.tileOf(u.x, u.y)]) zs.push(u.x * sx, u.y * sy); }
       else hs.push(u.x * sx, u.y * sy, u.k === 'civ');
     }
-    ctx.fillStyle = '#F2D16B';
+    ctx.fillStyle = mc.civ;
     for (let i = 0; i < hs.length; i += 3) if (hs[i + 2]) ctx.fillRect(hs[i] - 0.5, hs[i + 1] - 0.5, 1.5, 1.5);
-    ctx.fillStyle = '#5AA2FF';
+    ctx.fillStyle = mc.army;
     for (let i = 0; i < hs.length; i += 3) if (!hs[i + 2]) ctx.fillRect(hs[i] - 0.75, hs[i + 1] - 0.75, 2, 2);
-    ctx.fillStyle = '#FF4040';
+    ctx.fillStyle = mc.z;
     for (let i = 0; i < zs.length; i += 2) ctx.fillRect(zs[i] - 0.75, zs[i + 1] - 0.75, 2, 2);
-    if (w.isNight()) { ctx.fillStyle = 'rgba(10,20,70,0.35)'; ctx.fillRect(0, 0, this.cw, this.ch); }
+    if (w.isNight()) { ctx.fillStyle = th.night; ctx.fillRect(0, 0, this.cw, this.ch); }
     this.snap = ctx.getImageData(0, 0, this.cv.width, this.cv.height);
     this.drawCam(true);
   }
@@ -363,7 +401,7 @@ export class Minimap {
     if (!fresh && this.snap) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.putImageData(this.snap, 0, 0); ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); }
     const sx = this.cw / w.W, sy = this.ch / w.H;
     const [x0, y0] = r.toWorld(0, 0), [x1, y1] = r.toWorld(r.vw, r.vh);
-    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1;
+    ctx.strokeStyle = r.th.mini.frame; ctx.lineWidth = 1;
     ctx.strokeRect(Math.max(0, x0 * sx) + 0.5, Math.max(0, y0 * sy) + 0.5, Math.min(this.cw - 1, (x1 - x0) * sx), Math.min(this.ch - 1, (y1 - y0) * sy));
   }
   toWorld(mx, my) { const w = this.r.w; return [mx / this.cw * w.W, my / this.ch * w.H]; }

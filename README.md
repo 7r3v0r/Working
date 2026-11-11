@@ -20,6 +20,8 @@ Open the printed URL. The page fetches `data/*.json`, so it must be served over 
 
 URL options: `?seed=123` fixes the new-game seed, and `?nohelp` skips the start dialog.
 
+**Visual styles:** the Style button in the top bar cycles Classic, Parchment, Night Watch and Meadow (`?style=parchment`, `nightwatch` or `meadow` picks one directly; the choice is remembered). A style is only a set of colors in `src/render/themes.js` plus a block of CSS variables in `style.css`. It is applied once, so every style draws at the same speed.
+
 ## Test
 
 ```sh
@@ -61,7 +63,7 @@ The suite covers the economy, infection, settlers, carts, starvation, training, 
 data/        map, units, buildings, research, balance (all tuning numbers live here)
 src/sim/     pure simulation, no DOM: world, map rasterizer, pathing, economy (civ),
              military, zombies (AI/infection/threat/waves), logistics, vision, save
-src/render/  Canvas 2D renderer + minimap
+src/render/  Canvas 2D renderer + minimap, visual styles (themes.js)
 src/ui/      DOM panels, input, Web Audio alerts
 tools/       headless runner + test suite
 ```
