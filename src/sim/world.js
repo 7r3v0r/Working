@@ -27,6 +27,8 @@ export class World {
     this.road = new Uint8Array(N);
     this.tSpeed = new Float32Array(N);   // terrain + road, ignoring structures
     this.hSpeed = new Float32Array(N);   // humans: 0 where walls/towers block
+    this.kSpeed = new Float32Array(N);   // humans' known map: hSpeed where explored, open ground elsewhere
+    this.kDirty = new Set();             // coarse-graph chunks whose known speed changed
     this.zSpeed = new Float32Array(N);   // zombies: ditches slow; walls handled as attack targets
     this.zgSpeed = new Float32Array(N);  // zombie coarse graph: terrain passability only
     this.explored = new Uint8Array(N);
@@ -79,7 +81,8 @@ export class World {
     const N = this.N, ter = this.map.terrain;
     for (let t = 0; t < N; t++) this.refreshTile(t);
     for (let t = 0; t < N; t++) this.zgSpeed[t] = this.terSpeed[ter[t]] > 0 ? this.terSpeed[ter[t]] : (this.road[t] ? 0.5 : 0);
-    this.hg = new Graph(this.W, this.H, this.hSpeed, 0.5);
+    this.hg = new Graph(this.W, this.H, this.kSpeed, 0.5);
+    this.kDirty.clear();
     this.zg = new Graph(this.W, this.H, this.zgSpeed, 0.8);
     this.hg.rebuildAll(); this.zg.rebuildAll();
     this.allowMark = new Uint32Array(this.hg.NN);
@@ -118,6 +121,7 @@ export class World {
     const s = this.baseSpeed(t);
     this.tSpeed[t] = s;
     this.hSpeed[t] = (this.block[t] & BLOCK_H) ? 0 : s;
+    this.kSpeed[t] = this.explored[t] ? this.hSpeed[t] : 1;
     this.zSpeed[t] = s * ((this.block[t] & B_DITCH) ? 0.5 : 1);
   }
   tileOf(x, y) { return (y | 0) * this.W + (x | 0); }
@@ -142,8 +146,25 @@ export class World {
     for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
       if (dx * dx + dy * dy > r * r) continue;
       const nx = x + dx, ny = y + dy;
-      if (this.inMap(nx, ny)) this.explored[ny * this.W + nx] = 1;
+      if (this.inMap(nx, ny)) this.explore(ny * this.W + nx);
     }
+    this.flushExplore();
+  }
+  // Mark a tile explored. Human pathing plans on the known map, so newly seen terrain
+  // (a river, a cliff) updates it; call flushExplore() afterwards to rebuild the graph.
+  explore(t) {
+    if (this.explored[t]) return;
+    this.explored[t] = 1;
+    const s = this.hSpeed[t];
+    if (this.kSpeed[t] === s) return;
+    this.kSpeed[t] = s;
+    this.kDirty.add(((((t / this.W) | 0) / CS) | 0) * this.hg.CW + (((t % this.W) / CS) | 0));
+  }
+  flushExplore() {
+    if (!this.kDirty.size) return;
+    for (const c of this.kDirty) this.hg._chunk(c);
+    this.kDirty.clear();
+    this.hg.ver++;
   }
   setRoad(t, val) {
     const wasBridge = this.zgSpeed[t] === 0 || this.map.terrain[t] === TER.RIVER;
@@ -329,7 +350,7 @@ export class World {
 
   // ---------- pathing ----------
   planPath(u, gx, gy) {
-    const W = this.W, sp = this.hSpeed;
+    const W = this.W, sp = this.kSpeed;
     const sx = Math.max(0, Math.min(W - 1, u.x | 0)), sy = Math.max(0, Math.min(this.H - 1, u.y | 0));
     let gt = this.passableNear(Math.max(0, Math.min(this.H - 1, gy | 0)) * W + Math.max(0, Math.min(W - 1, gx | 0)), sp, 6);
     u.path = null; u.coarse = null; u.pi = 0; u.ci = 0;
@@ -371,8 +392,8 @@ export class World {
     for (let i = Math.max(0, idx - 1); i <= end; i++) addN(cp[i]);
     if (curN >= 0) addN(curN);
     const gx = tgt % W, gy = (tgt / W) | 0;
-    let p = this.tp.find(sx, sy, gx, gy, this.hSpeed, bx0, by0, bx1, by1, { comp: hg.comp, mark, val }, 6000);
-    if (!p) p = this.tp.find(sx, sy, gx, gy, this.hSpeed, Math.min(bx0, gx) - 12, Math.min(by0, gy) - 12, Math.max(bx1, gx) + 12, Math.max(by1, gy) + 12, null, 9000);
+    let p = this.tp.find(sx, sy, gx, gy, this.kSpeed, bx0, by0, bx1, by1, { comp: hg.comp, mark, val }, 6000);
+    if (!p) p = this.tp.find(sx, sy, gx, gy, this.kSpeed, Math.min(bx0, gx) - 12, Math.min(by0, gy) - 12, Math.max(bx1, gx) + 12, Math.max(by1, gy) + 12, null, 9000);
     if (!p) { u.path = null; u.coarse = null; return false; }
     u.path = p; u.pi = 0; u.ci = end;
     if (last) u.coarse = null;
@@ -392,7 +413,13 @@ export class World {
         u.path = null; u.coarse = null; return 1;
       }
       const t = p[u.pi];
-      if (this.hSpeed[t] <= 0) { u.path = null; u.coarse = null; return -1; }
+      if (this.hSpeed[t] <= 0) {
+        // Blocked: an obstacle the unit hadn't seen, or a new wall. Learn it and reroute.
+        this.explore(t); this.flushExplore();
+        const g = u.goalT;
+        if (g !== undefined && guard++ < 3 && this.planPath(u, g % W + 0.5, ((g / W) | 0) + 0.5)) continue;
+        u.path = null; u.coarse = null; return -1;
+      }
       const tx = t % W + 0.5, ty = ((t / W) | 0) + 0.5;
       const dx = tx - u.x, dy = ty - u.y, d = Math.hypot(dx, dy);
       if (d <= budget) { u.x = tx; u.y = ty; budget -= d; u.pi++; }

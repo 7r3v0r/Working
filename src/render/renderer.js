@@ -268,10 +268,20 @@ export class Renderer {
     for (const id of ui.sel.squads) {
       const q = w.squadMap.get(id);
       if (!q || !q.order || q.order.x === undefined || q.order.t === 'hold') continue;
+      const col = t => t === 'amove' || t === 'attack' ? '#FF7A7A' : '#9FE3FF';
       const [x, y] = this.toScreen(q.order.x, q.order.y);
-      ctx.strokeStyle = q.order.t === 'amove' || q.order.t === 'attack' ? '#FF7A7A' : '#9FE3FF';
+      ctx.strokeStyle = col(q.order.t);
       ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(x - 5, y - 5); ctx.lineTo(x + 5, y + 5); ctx.moveTo(x + 5, y - 5); ctx.lineTo(x - 5, y + 5); ctx.stroke();
+      // queued waypoints: dashed legs, small markers
+      let px = x, py = y;
+      for (const wp of q.queue || []) {
+        const [qx, qy] = this.toScreen(wp.x, wp.y);
+        ctx.strokeStyle = col(wp.t); ctx.globalAlpha = 0.7; ctx.setLineDash([4, 4]);
+        ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(qx, qy); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+        ctx.beginPath(); ctx.arc(qx, qy, 3.5, 0, 6.2832); ctx.stroke();
+        px = qx; py = qy;
+      }
       if (q.order.t === 'patrol') {
         const [ax, ay] = this.toScreen(q.order.ax, q.order.ay);
         ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(x, y); ctx.stroke(); ctx.setLineDash([]);

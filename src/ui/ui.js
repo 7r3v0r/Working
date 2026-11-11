@@ -93,7 +93,7 @@ export class UI {
     cv.addEventListener('wheel', e => { e.preventDefault(); this.r.zoomAt(e.offsetX, e.offsetY, e.deltaY < 0 ? 1.15 : 1 / 1.15); }, { passive: false });
     const mm = $('minimap');
     const mmGo = e => { const rc = mm.getBoundingClientRect(); const [x, y] = this.g.minimap.toWorld(e.clientX - rc.left, e.clientY - rc.top); this.r.cam.x = x; this.r.cam.y = y; this.r.clampCam(); };
-    mm.addEventListener('mousedown', e => { if (e.button === 0) { this.mmDrag = true; mmGo(e); } else if (e.button === 2 && this.sel.units.size) { const rc = mm.getBoundingClientRect(); const [x, y] = this.g.minimap.toWorld(e.clientX - rc.left, e.clientY - rc.top); this.order('move', x, y); } });
+    mm.addEventListener('mousedown', e => { if (e.button === 0) { this.mmDrag = true; mmGo(e); } else if (e.button === 2 && this.sel.units.size) { const rc = mm.getBoundingClientRect(); const [x, y] = this.g.minimap.toWorld(e.clientX - rc.left, e.clientY - rc.top); this.order('move', x, y, 0, e.shiftKey); } });
     mm.addEventListener('contextmenu', e => e.preventDefault());
     window.addEventListener('mousemove', e => { if (this.mmDrag) mmGo(e); });
     window.addEventListener('mouseup', () => { this.mmDrag = false; });
@@ -169,7 +169,7 @@ export class UI {
       if (m.k === 'build') { this.placeBuilding(e.shiftKey); return; }
       if (m.k === 'line') { m.start = [tx, ty]; return; }
       if (m.k === 'found') { this.found(); return; }
-      if (m.k === 'amove') { this.order('amove', wx, wy); if (!e.shiftKey) this.setMode(null); return; }
+      if (m.k === 'amove') { this.order('amove', wx, wy, 0, e.shiftKey); if (!e.shiftKey) this.setMode(null); return; }
       if (m.k === 'patrol') { this.order('patrol', wx, wy); this.setMode(null); return; }
       if (m.k === 'garrison') {
         const b = this.buildingAt(tx, ty);
@@ -207,7 +207,7 @@ export class UI {
     const b = this.buildingAt(tx, ty);
     if (b && (b.infected || this.w.BD[b.type].zombie)) this.order('attack', wx, wy, b.id);
     else if (b && this.w.BD[b.type].garrison && b.done) this.order('garrison', wx, wy, b.id);
-    else this.order(e.shiftKey ? 'amove' : 'move', wx, wy);
+    else this.order('move', wx, wy, 0, e.shiftKey);
   }
 
   buildingAt(tx, ty) {
@@ -258,8 +258,8 @@ export class UI {
     if (!add) { this.sel.units.clear(); this.sel.building = 0; }
     for (const id of s.members) this.sel.units.add(id);
   }
-  order(o, x, y, b) {
-    const r = this.w.cmd({ t: 'order', units: [...this.sel.units], o, x, y, b });
+  order(o, x, y, b, queue = false) {
+    const r = this.w.cmd({ t: 'order', units: [...this.sel.units], o, x, y, b, queue });
     if (!r.ok && r.reason) this.flash(r.reason);
   }
 
@@ -278,7 +278,7 @@ export class UI {
     if (m.k === 'build') t = `Placing ${name} — click to place (Shift keeps placing), right-click/Esc to cancel`;
     if (m.k === 'line') t = `Drawing ${name} — drag to draw a line, right-click/Esc to finish`;
     if (m.k === 'found') t = m.kind === 'camp' ? `Found camp — click a spot in ${esc(this.curCity() ? this.curCity().name : 'your city')}'s region, outside its build area` : 'Found settlement — click a spot in an explored, unsettled region';
-    if (m.k === 'amove') t = 'Attack-move — click a destination';
+    if (m.k === 'amove') t = 'Attack-move — click a destination (Shift-click adds waypoints)';
     if (m.k === 'patrol') t = 'Patrol — click the far end of the route';
     if (m.k === 'garrison') t = 'Garrison — click a tower (archers go inside)';
     if (this.ghost && this.ghost.reason) t += ` · <span class="warn">${esc(this.ghost.reason)}</span>`;
@@ -439,6 +439,7 @@ export class UI {
 <kbd>Left click / drag</kbd><span>Select a soldier or building · box-select soldiers (Shift adds)</span>
 <kbd>Double-click</kbd><span>Select a soldier's whole squad</span>
 <kbd>Right click</kbd><span>Move (on a nest/infected building: attack; on a tower: garrison)</span>
+<kbd>Shift+right click</kbd><span>Add a waypoint after the current move</span>
 <kbd>A</kbd><span>Attack-move (with squads selected)</span>
 <kbd>H</kbd> <span>Hold position</span>
 <kbd>G</kbd><span>Garrison archers into a tower</span>
@@ -769,7 +770,7 @@ export class UI {
     if (sqs.length > 4) html += `<div class="muted">+${sqs.length - 4} more squads</div>`;
     html += `<div class="actions"><button data-act="sq-amove" title="A">Attack-move</button><button data-act="sq-hold" title="H">Hold</button><button data-act="sq-patrol" title="P">Patrol</button><button data-act="sq-garrison" title="G">Garrison</button>` +
       `${sqs.length > 1 || partial ? '<button data-act="sq-group" title="Make the selected soldiers their own squad">Form squad</button>' : ''}${partial ? '<button data-act="sq-whole" title="Select every soldier in these squads (or double-click a soldier)">Whole squad</button>' : ''}<button data-act="deselect">✕</button></div>` +
-      `<div class="muted" style="margin-top:4px">Right-click to move · orders apply only to the selected soldiers · double-click a soldier to select its squad</div>`;
+      `<div class="muted" style="margin-top:4px">Right-click to move · Shift+right-click adds a waypoint · orders apply only to the selected soldiers · double-click a soldier to select its squad</div>`;
     return html;
   }
   buildingSel(b) {

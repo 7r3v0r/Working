@@ -2,7 +2,7 @@
 import { lists, hasStock, takeStock, costText } from './civ.js';
 
 export function newSquad(w, cityId, name, auto = false) {
-  const s = { id: w.nextId++, name, city: cityId, auto, members: [], order: { t: 'idle', x: 0, y: 0 } };
+  const s = { id: w.nextId++, name, city: cityId, auto, members: [], order: { t: 'idle', x: 0, y: 0 }, queue: [] };
   w.squads.push(s); w.squadMap.set(s.id, s);
   return s;
 }
@@ -72,7 +72,7 @@ export function squadsForUnits(w, ids, forceNew = false) {
     const n = w.squads.filter(s => s.city === cityId).length + 1;
     const ns = newSquad(w, cityId, `${c ? c.name : 'Free'} Squad ${n}`);
     const old = w.squadMap.get(chunk[0].squad);
-    if (old) ns.order = { ...old.order };
+    if (old) { ns.order = { ...old.order }; ns.queue = (old.queue || []).map(q => ({ ...q })); }
     for (const u of chunk) { removeFromSquad(w, u); addToSquad(w, u, ns); }
     out.push(ns);
   }
@@ -85,9 +85,23 @@ export function cmdGroup(w, c) {
   return { ok: true, squads: sqs.map(s => s.id) };
 }
 
+const QUEUEABLE = ['move', 'amove'];
+const moving = s => QUEUEABLE.includes(s.order.t);
+
 export function cmdOrder(w, c) {
-  const sqs = c.units ? squadsForUnits(w, c.units) : c.squads.map(id => w.squadMap.get(id)).filter(Boolean);
+  let sqs = c.units ? squadsForUnits(w, c.units) : c.squads.map(id => w.squadMap.get(id)).filter(Boolean);
   if (!sqs.length) return { ok: false, reason: 'No squad selected' };
+  // Shift-queued waypoint: squads already on the move add it to their queue; the rest start now.
+  if (c.queue && QUEUEABLE.includes(c.o)) {
+    const rest = [];
+    for (const s of sqs) {
+      if (moving(s)) { if (!s.queue) s.queue = []; if (s.queue.length < 20) s.queue.push({ t: c.o, x: c.x, y: c.y }); }
+      else rest.push(s);
+    }
+    if (!rest.length) return { ok: true };
+    sqs = rest;
+  }
+  for (const s of sqs) s.queue = [];
   const ms = members(w, sqs);
   if (c.o === 'hold') {
     for (const s of sqs) s.order = { t: 'hold' };
@@ -329,6 +343,12 @@ export function updateSquads(w) {
       const ms = members(w, [s]);
       const slots = formation(ms.length, tx, ty);
       ms.forEach((u, i) => { u.dx = slots[i][0]; u.dy = slots[i][1]; u.needPath = true; u.arrived = false; });
+    } else if (s.queue && s.queue.length) {
+      const nx = s.queue.shift();
+      s.order = { t: nx.t, x: nx.x, y: nx.y };
+      const ms = members(w, [s]);
+      const slots = formation(ms.length, nx.x, nx.y);
+      ms.forEach((u, i) => { u.dx = slots[i][0]; u.dy = slots[i][1]; u.needPath = true; u.arrived = false; u.tgt = 0; u.chased = false; u.fails = 0; });
     } else s.order = { t: 'idle', x: o.x, y: o.y };
   }
 }

@@ -5,6 +5,7 @@ import { serialize, deserialize, stateHash } from '../src/sim/save.js';
 import { canFound } from '../src/sim/logistics.js';
 import { canPlace } from '../src/sim/civ.js';
 import { TER } from '../src/sim/map.js';
+import { Graph } from '../src/sim/pathing.js';
 
 let failed = 0;
 const results = [];
@@ -130,6 +131,50 @@ const starterTown = w => {
     const after = canPlace(w, 'house', hx, hy);
     check('camp: houses can be placed near the camp', !before && after.ok && after.city === c, after.reason || '');
   }
+}
+
+// 3c. Fog: human pathing only knows explored terrain
+{
+  const w = newWorld(21);
+  const st = w.map.def.start, W = w.W;
+  let river = -1, bd = Infinity;
+  for (let t = 0; t < w.N; t++) if (w.map.terrain[t] === TER.RIVER && !w.explored[t]) {
+    const d = Math.hypot(t % W - st[0], ((t / W) | 0) - st[1]); if (d < bd) { bd = d; river = t; }
+  }
+  check('fog: an unexplored river looks open to planners', river >= 0 && w.kSpeed[river] > 0 && w.hSpeed[river] === 0);
+  const u = w.unitMap.get(w.squads[0].members[0]);
+  const rx = river % W, ry = (river / W) | 0, d = Math.hypot(rx - u.x, ry - u.y);
+  const gx = rx + (rx - u.x) / d * 12, gy = ry + (ry - u.y) / d * 12;
+  const truth = new Graph(W, w.H, w.hSpeed, 0.5); truth.rebuildAll();
+  const st0 = w.tileOf(u.x, u.y), gt = w.tileOf(gx, gy);
+  const known = w.hg.pathCost(w.hg.comp[st0], w.hg.comp[gt]), real = truth.pathCost(truth.comp[st0], truth.comp[gt]);
+  check('fog: the planned route does not use hidden terrain', known < real, `known ${known.toFixed(0)} vs real ${real.toFixed(0)}`);
+  w.cmd({ t: 'order', units: [u.id], o: 'move', x: gx, y: gy });
+  let t = 0;
+  while (t < 8000 && Math.hypot(u.x - gx, u.y - gy) > 3) { run(w, 50); t += 50; killDormantNear(w, u.x, u.y, 30); }
+  check('fog: the unit discovers the river and reroutes to the far bank', Math.hypot(u.x - gx, u.y - gy) <= 3, `${(t * w.DT).toFixed(0)} s`);
+  check('fog: the river is now known as blocked', w.kSpeed[river] === 0 || !w.explored[river]);
+}
+
+// 3d. Shift-queued waypoints
+{
+  const w = newWorld(22);
+  const st = w.map.def.start;
+  const sq = w.squads[0], ids = [...sq.members];
+  const center = () => { let x = 0, y = 0; for (const id of ids) { const u = w.unitMap.get(id); x += u.x; y += u.y; } return [x / ids.length, y / ids.length]; };
+  const pts = [[st[0] + 18, st[1] + 4], [st[0] + 18, st[1] + 20], [st[0] + 2, st[1] + 22]].map(([x, y]) => { const t = w.passableNear(w.tileOf(x, y), w.hSpeed, 6); return [t % w.W + 0.5, ((t / w.W) | 0) + 0.5]; });
+  w.cmd({ t: 'order', units: ids, o: 'move', x: pts[0][0], y: pts[0][1] });
+  w.cmd({ t: 'order', units: ids, o: 'move', x: pts[1][0], y: pts[1][1], queue: true });
+  w.cmd({ t: 'order', units: ids, o: 'amove', x: pts[2][0], y: pts[2][1], queue: true });
+  const s = w.squadMap.get(w.unitMap.get(ids[0]).squad);
+  check('waypoints: shift-orders are queued', s.queue.length === 2, `queue ${s.queue.length}`);
+  const near = [Infinity, Infinity, Infinity];
+  for (let i = 0; i < 120; i++) { run(w, 20); const [cx, cy] = center(); pts.forEach((p, k) => { near[k] = Math.min(near[k], Math.hypot(cx - p[0], cy - p[1])); }); }
+  check('waypoints: the squad visits each waypoint in turn', near.every(d => d < 3) && s.queue.length === 0, near.map(d => d.toFixed(1)).join(', '));
+  w.cmd({ t: 'order', units: ids, o: 'move', x: pts[0][0], y: pts[0][1] });
+  w.cmd({ t: 'order', units: ids, o: 'move', x: pts[1][0], y: pts[1][1], queue: true });
+  w.cmd({ t: 'order', units: ids, o: 'move', x: pts[2][0], y: pts[2][1] });
+  check('waypoints: a plain order clears the queue', s.queue.length === 0);
 }
 
 // 4. Barracks training, library research

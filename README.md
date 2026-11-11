@@ -42,8 +42,8 @@ The suite covers the economy, infection, settlers, carts, starvation, training, 
 | Mouse wheel | Zoom (whole map to 24 px per tile) |
 | Left click / drag | Select a soldier or building / box-select soldiers (Shift adds) |
 | Double-click | Select a soldier's whole squad |
-| Right click | Move. On a nest or infected building: attack. On a tower: garrison. Shift+right-click: attack-move |
-| A, H, G, P | Attack-move, hold, garrison, patrol (with squads selected) |
+| Right click | Move. On a nest or infected building: attack. On a tower: garrison. Shift+right-click: add a move waypoint (queued after the current move) |
+| A, H, G, P | Attack-move (Shift-click adds attack-move waypoints), hold, garrison, patrol (with squads selected) |
 | Space, 1 / 2 / 3 | Pause (you can still give orders), then 1x / 2x / 4x |
 | B | Show or hide the build bar (Settlement, Industry and Military tabs along the bottom) |
 | C, L, R | City, Logistics and Research panels |
@@ -81,4 +81,5 @@ These are tuning or scope decisions. All the numbers live in `data/`.
 - **Town hall breach:** a town hall takes 150 zombie damage before its sheltered civilians are infected. Other buildings are infected on the first hit. Without this, one stray zombie reaching the capital ended the run in seconds.
 - **Starting garrison:** you start with 3 swordsmen and 3 archers in addition to the 30 civilians.
 - **Timing of raids and packs:** nest raids start on day 3 and only target cities within 260 tiles of a nest. Roaming packs start on day 2.
+- **Fog and pathing:** soldiers and civilians plan routes on what you have explored. Unexplored ground counts as open, so a unit heads straight into the unknown and reroutes when it reaches a river or cliff it hadn't seen.
 - **Garrison:** only towers can be garrisoned, by up to 5 archers each. Giving G on another building moves the squad next to it.

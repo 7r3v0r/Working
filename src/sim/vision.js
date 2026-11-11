@@ -11,7 +11,8 @@ function circle(r, W) {
   return c;
 }
 
-export function updateVision(w) {
+// explore=false recomputes `visible` only (used after loading a save).
+export function updateVision(w, explore = true) {
   const vis = w.visible, exp = w.explored, W = w.W, H = w.H;
   vis.fill(0);
   const nm = w.isNight() ? w.B.vision.nightMult : 1;
@@ -26,12 +27,12 @@ export function updateVision(w) {
     const n = c.dx.length;
     if (cx - r >= 0 && cy - r >= 0 && cx + r < W && cy + r < H) {
       const base = cy * W + cx;
-      for (let i = 0; i < n; i++) { const t = base + c.dy[i] * W + c.dx[i]; vis[t] = 1; exp[t] = 1; }
+      for (let i = 0; i < n; i++) { const t = base + c.dy[i] * W + c.dx[i]; vis[t] = 1; if (explore && !exp[t]) w.explore(t); }
     } else {
       for (let i = 0; i < n; i++) {
         const xx = cx + c.dx[i], yy = cy + c.dy[i];
         if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
-        const t = yy * W + xx; vis[t] = 1; exp[t] = 1;
+        const t = yy * W + xx; vis[t] = 1; if (explore && !exp[t]) w.explore(t);
       }
     }
   };
@@ -48,4 +49,5 @@ export function updateVision(w) {
     const r = Math.max(bv, Math.round(((b.done && d.vision) || bv) * nm));
     stampRaw(b.x + b.w / 2, b.y + b.h / 2, r + Math.ceil(Math.max(b.w, b.h) / 2));
   }
+  w.flushExplore();
 }

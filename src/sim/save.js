@@ -51,9 +51,7 @@ export function deserialize(defs, json, map) {
 
 // Recompute `visible` for rendering without touching explored (already restored).
 function updateVisionNoExplore(w) {
-  const keep = w.explored.slice();
-  updateVision(w);
-  w.explored.set(keep);
+  updateVision(w, false);
 }
 
 // Compact state hash for determinism tests.
