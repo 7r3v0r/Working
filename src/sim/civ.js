@@ -422,18 +422,61 @@ function work(w, u, job, jd) {
   if (!job || job.dead || !jd || u.inside !== job.id) { u.task = 'idle'; return; }
   u.timer -= w.DT;
   if (u.timer > 0) return;
+  const boost = (regionFx(w).yield[job.type] || 1) * auraMult(w, job);
   if (jd.rp) {
-    w.research.rp += jd.rp;
+    w.research.rp += jd.rp * boost;
     u.timer = cycleTime(w, job, jd);
     return;
   }
   const [res, amt0] = Object.entries(jd.out)[0];
-  let amt = amt0 * (job.yieldF || 1);
+  let amt = amt0 * (job.yieldF || 1) * boost;
   if (job.type === 'farm' && w.has('farmYield')) amt *= 1.3;
   u.carry = { r: res, a: amt, src: job.type };
   u.hasIn = false;
   w.exit(u);
   u.task = 'idle';
+}
+
+// ---------------- regions ----------------
+// A region's bonus applies to every city once one of your cities holds it with a standing town hall.
+// Cached per structure version (town halls completing or falling bump it).
+export function regionFx(w) {
+  if (w._fx && w._fxv === w.structVer) return w._fx;
+  const fx = { held: new Set(), yield: {}, cost: {}, train: 1 };
+  for (const c of w.cities) {
+    const h = w.bMap.get(c.hall);
+    if (h && h.done && !h.dead) fx.held.add(c.region);
+  }
+  for (const r of fx.held) {
+    const b = w.map.def.regions[r].bonus;
+    if (!b) continue;
+    for (const k in b.yield || {}) fx.yield[k] = (fx.yield[k] || 1) * b.yield[k];
+    for (const k in b.cost || {}) fx.cost[k] = (fx.cost[k] || 1) * b.cost[k];
+    if (b.train) fx.train *= b.train;
+  }
+  w._fx = fx; w._fxv = w.structVer;
+  return fx;
+}
+// Building price after region discounts.
+export function buildCost(w, type) {
+  const d = w.BD[type], m = regionFx(w).cost[type];
+  if (!m || !d.cost) return d.cost;
+  const out = {};
+  for (const k in d.cost) out[k] = Math.max(1, Math.round(d.cost[k] * m));
+  return out;
+}
+// Strongest aura from the city's finished buildings (watermill, sawmill, mason's yard) covering b.
+export function auraMult(w, b) {
+  const c = w.cityMap.get(b.city);
+  if (!c) return 1;
+  let m = 1;
+  const bx = b.x + b.w / 2, by = b.y + b.h / 2;
+  for (const a of lists(w, c).all) {
+    const A = w.BD[a.type].aura;
+    if (!A || !a.done || a.infected || !A.types.includes(b.type)) continue;
+    if (Math.hypot(a.x + a.w / 2 - bx, a.y + a.h / 2 - by) <= A.radius) m = Math.max(m, A.mult);
+  }
+  return m;
 }
 
 // ---------------- placement ----------------
@@ -508,6 +551,7 @@ export function canPlace(w, type, x, y) {
     }
     if (ter === TER.RIVER || ter === TER.FORD || ter === TER.CLIFF) return fail('Blocked terrain');
   }
+  if (d.region !== undefined && w.regionAt(x + d.w / 2, y + d.h / 2) !== d.region) return fail(`Only in ${w.map.def.regions[d.region].name}`);
   if (zombiesNear(w, x, y, d.w, d.h)) return fail(`Zombies within ${w.B.city.zombieClear} tiles`);
   const city = placementCity(w, type, x, y);
   if (!city) {
@@ -521,7 +565,8 @@ export function canPlace(w, type, x, y) {
     if (n < d.req.count) return fail(`Needs ${d.req.terrain ? d.req.terrain.join('/') : d.req.deposit.join('/') + ' deposit'} (${n}/${d.req.count})`);
     if (d.req.target) yieldF = Math.max(0.5, Math.min(1.5, n / d.req.target));
   }
-  if (!hasStock(city, d.cost)) return fail(`Not enough materials (${costText(d.cost)})`);
+  const cost = buildCost(w, type);
+  if (!hasStock(city, cost)) return fail(`Not enough materials (${costText(cost)})`);
   return { ok: true, city, yieldF, replace };
 }
 
@@ -529,8 +574,8 @@ export function canPlace(w, type, x, y) {
 // Cost: the building's price × missing HP fraction × costMult. Time: build time × missing fraction × timeMult
 // (at least minTime). Paid up front; HP comes back gradually and pauses while the building is under attack.
 export function repairCost(w, b) {
-  const d = w.BD[b.type], miss = Math.max(0, 1 - b.hp / (b.maxHp || d.hp)), cost = {};
-  for (const k in d.cost) { const v = Math.ceil(d.cost[k] * miss * w.B.repair.costMult); if (v > 0) cost[k] = v; }
+  const d = w.BD[b.type], miss = Math.max(0, 1 - b.hp / (b.maxHp || d.hp)), base = buildCost(w, b.type) || {}, cost = {};
+  for (const k in base) { const v = Math.ceil(base[k] * miss * w.B.repair.costMult); if (v > 0) cost[k] = v; }
   return cost;
 }
 export function canRepair(w, b) {
@@ -571,7 +616,7 @@ export function updateRepair(w, b) {
 export function cmdBuild(w, c) {
   const r = canPlace(w, c.type, c.x, c.y);
   if (!r.ok) return r;
-  takeStock(r.city, w.BD[c.type].cost, w, 'Construction');
+  takeStock(r.city, buildCost(w, c.type), w, 'Construction');
   if (r.replace) w.destroyBuilding(r.replace, 'replaced');
   const b = w.addBuilding(c.type, c.x, c.y, r.city.id, false);
   b.yieldF = r.yieldF;
@@ -613,7 +658,7 @@ export function cmdLine(w, c) {
     } else {
       const r = canPlace(w, c.type, x, y);
       if (!r.ok) { reason = r.reason; continue; }
-      takeStock(r.city, w.BD[c.type].cost, w, 'Construction');
+      takeStock(r.city, buildCost(w, c.type), w, 'Construction');
       if (r.replace) w.destroyBuilding(r.replace, 'replaced');
       w.addBuilding(c.type, x, y, r.city.id, false);
       placed++;

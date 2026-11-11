@@ -1,6 +1,6 @@
 // DOM UI + input handling. Reads the world, issues commands through world.cmd().
-import { canPlace, canRoad, costText, lists, CATS, cityOfRegion, campsOf, flowSummary, canRepair, repairCost } from '../sim/civ.js';
-import { canFound, partyCost } from '../sim/logistics.js';
+import { canPlace, canRoad, costText, lists, CATS, cityOfRegion, campsOf, flowSummary, canRepair, repairCost, buildCost, regionFx } from '../sim/civ.js';
+import { canFound, partyCost, tradeGroups } from '../sim/logistics.js';
 import { squadETA, trainTime } from '../sim/military.js';
 import { regionThreat } from '../sim/zombies.js';
 import { TER_NAMES, DEP_NAMES } from '../sim/map.js';
@@ -286,6 +286,7 @@ export class UI {
     if (m.k === 'patrol') t = 'Patrol — click the far end of the route';
     if (m.k === 'garrison') t = 'Garrison — click a tower (archers go inside)';
     if (this.ghost && this.ghost.reason) t += ` · <span class="warn">${esc(this.ghost.reason)}</span>`;
+    if (this.ghost && this.ghost.info) t += `<br>${this.ghost.info}`;
     el.innerHTML = t; el.hidden = false;
   }
   flash(msg) { this.pushAlert({ kind: 'alert', msg }); }
@@ -331,7 +332,12 @@ export class UI {
         for (const b of campsOf(w, pc)) rings.push([b.x + b.w / 2, b.y + b.h / 2, w.B.camp.radius]);
       }
       if (m.k === 'found' && kind === 'camp') rings.push([x + d.w / 2, y + d.h / 2, w.B.camp.radius, true]);
-      this.ghost = { tiles: [[x, y, r.ok, d.w, d.h]], reason: r.ok ? '' : r.reason, rings };
+      let info = '';
+      if (m.k === 'found' && kind === 'city') {
+        const R = w.map.def.regions[w.regionAt(x + d.w / 2, y + d.h / 2)];
+        if (R && R.bonus) info = `${R.name}: <b>${esc(R.bonus.name)}</b> — ${esc(R.bonus.desc)}${this.regionBuilding(R.id) ? ` Unlocks the ${esc(this.regionBuilding(R.id))}.` : ''}`;
+      }
+      this.ghost = { tiles: [[x, y, r.ok, d.w, d.h]], reason: r.ok ? '' : r.reason, rings, info };
     } else {
       const [tx, ty] = [Math.floor(wx), Math.floor(wy)];
       const pts = m.start ? lineTiles(m.start[0], m.start[1], tx, ty) : [[tx, ty]];
@@ -344,7 +350,7 @@ export class UI {
         if (!r.ok) reason = r.reason;
       }
       const d = w.BD[m.type];
-      const cost = ROADS[m.type] ? (m.type === 'sroad' ? w.B.roads.stone.cost : w.B.roads.dirt.cost) : d.cost;
+      const cost = ROADS[m.type] ? (m.type === 'sroad' ? w.B.roads.stone.cost : w.B.roads.dirt.cost) : buildCost(w, m.type);
       const n = tiles.filter(t => t[2]).length;
       const tot = {}; for (const k in cost) tot[k] = cost[k] * n;
       this.ghost = { tiles, reason: (m.start ? `${n} tiles · ${costText(tot)}` : '') + (reason ? ` · ${reason}` : '') };
@@ -613,7 +619,7 @@ ${!ok ? '<p class="warn">This browser is blocking site storage, so only save fil
   barCards() {
     const w = this.w, c = this.curCity();
     const cards = [];
-    for (const [k, d] of Object.entries(w.BD)) if (d.menu === this.bbTab) cards.push(k);
+    for (const [k, d] of Object.entries(w.BD)) if (d.menu === this.bbTab && (d.region === undefined || (c && c.region === d.region))) cards.push(k);
     if (this.bbTab === 'civic') {
       if (c && !c.hall) cards.unshift('townhall');
       cards.push('road', 'sroad', 'found', 'foundcamp');
@@ -625,7 +631,7 @@ ${!ok ? '<p class="warn">This browser is blocking site storage, so only save fil
     if (k === 'road') return w.B.roads.dirt.cost;
     if (k === 'sroad') return w.B.roads.stone.cost;
     if (FOUND_CARDS[k]) return partyCost(w, FOUND_CARDS[k]);
-    return w.BD[k].cost;
+    return buildCost(w, k);
   }
   cardDef(k) { return k === 'found' ? { name: 'Found settlement', menu: 'civic' } : k === 'foundcamp' ? { name: 'Found camp', menu: 'civic' } : (this.w.BD[k] || ROADS[k]); }
   renderBuildBar(force) {
@@ -678,6 +684,11 @@ ${!ok ? '<p class="warn">This browser is blocking site storage, so only save fil
     if (d.drop) rows.push(`<div class="tip-row"><span class="muted">Accepts</span> ${d.drop[0] === '*' ? 'all goods' : d.drop.map(r => resIcon(r, RC, 12)).join(' ')}</div>`);
     if (d.req) rows.push(`<div class="tip-row"><span class="muted">Needs</span> ${d.req.kind === 'footprint' ? `${d.req.count} ${d.req.terrain.join('/')} tiles under it` : `${d.req.terrain ? d.req.terrain.join('/') : d.req.deposit.join('/') + ' deposit'} within ${d.req.radius} tiles`}</div>`);
     if (d.vision && !d.garrison) rows.push(`<div class="tip-row"><span class="muted">Vision</span> ${d.vision} tiles</div>`);
+    if (d.region !== undefined) rows.push(`<div class="tip-row"><span class="muted">Region</span> only in ${esc(w.map.def.regions[d.region].name)}</div>`);
+    if (d.aura) rows.push(`<div class="tip-row"><span class="muted">Boosts</span> ${d.aura.types.map(t => w.BD[t].name.toLowerCase() + 's').join(' and ')} within ${d.aura.radius} tiles ×${d.aura.mult}</div>`);
+    if (d.trainMult) rows.push(`<div class="tip-row"><span class="muted">Training</span> ×${1 / d.trainMult} speed</div>`);
+    if (w.BD[k] && regionFx(w).cost[k]) rows.push(`<div class="tip-row muted">Region discount ${Math.round((1 - regionFx(w).cost[k]) * 100)}% applied</div>`);
+    if (w.BD[k] && regionFx(w).yield[k]) rows.push(`<div class="tip-row muted">Region bonus +${Math.round((regionFx(w).yield[k] - 1) * 100)}% output</div>`);
     if (d.placeRadius) rows.push(`<div class="tip-row"><span class="muted">Placement</span> up to ${d.placeRadius} tiles from a town</div>`);
     if (d.garrison) rows.push(`<div class="tip-row"><span class="muted">Garrison</span> ${d.garrison} archers</div>`);
     if (d.hp && !d.ditch) rows.push(`<div class="tip-row"><span class="muted">HP</span> ${d.hp}${d.w ? ` · ${d.w}×${d.h} tiles` : ''}</div>`);
@@ -764,10 +775,32 @@ ${!ok ? '<p class="warn">This browser is blocking site storage, so only save fil
     return html;
   }
 
+  tradeHtml() {
+    const w = this.w, T = w.B.trade, groups = tradeGroups(w), linked = new Set(groups.flatMap(g => g.cities));
+    let html = `<h3>Trade network</h3><p class="muted">Join town halls with roads (within ${T.hallReach} tiles of each hall; bridges count, walls break the road). Every ${T.interval}s each linked city keeps a working reserve (food for ${T.foodDays} days, ${T.reserve.wood} wood, ${T.reserve.stone} stone…), sends ${Math.round(T.share * 100)}% of anything above it to the hub, and is topped up from the hub when it runs short. Paused while a city is under attack.</p>`;
+    for (const g of groups) html += `<div class="row">⇄ ${g.cities.map(id => { const c = w.cityMap.get(id); return id === g.hub ? `<b>${esc(c.name)}</b> (hub)` : esc(c.name); }).join(' · ')}</div>`;
+    const loose = w.cities.filter(c => !linked.has(c.id));
+    if (w.cities.length > 1 && loose.length) html += `<div class="row muted">Not linked: ${loose.map(c => esc(c.name)).join(', ')}</div>`;
+    if (w.cities.length < 2) html += '<p class="muted">Found a second city to start trading.</p>';
+    return html;
+  }
+  regionBuilding(r) { for (const d of Object.values(this.w.BD)) if (d.region === r) return d.name; return ''; }
+  regionsHtml() {
+    const w = this.w, held = regionFx(w).held;
+    let html = '<h3>Regions</h3><p class="muted">Holding a region (a city there with a standing town hall) gives its bonus to every city and unlocks its special building.</p><table>';
+    for (const R of w.map.def.regions) {
+      if (!R.bonus) continue;
+      const c = w.cities.find(x => x.region === R.id);
+      const st = held.has(R.id) ? `<span class="pos">held by ${esc(c.name)}</span>` : c ? '<span class="warn">no town hall</span>' : '<span class="muted">unsettled</span>';
+      html += `<tr><td><b>${esc(R.name)}</b> · ${st}<div class="muted">${esc(R.bonus.name)}: ${esc(R.bonus.desc)}${this.regionBuilding(R.id) ? ` Special building: ${esc(this.regionBuilding(R.id))}.` : ''}</div></td></tr>`;
+    }
+    return html + '</table>';
+  }
   logisticsPanel() {
     const w = this.w, RC = w.B.resourceColors;
     let html = this.head('Logistics');
     html += '<p class="muted">Carts are built at a Cart depot (select it). A route sends a resource from A to B while A has more than <i>min</i> and B has less than <i>max</i>.</p>';
+    html += this.tradeHtml() + this.regionsHtml();
     html += '<h3>Carts</h3><table><tr><th>City</th><th class="n">Carts</th><th class="n">Idle</th></tr>';
     for (const c of w.cities) {
       const carts = w.units.filter(u => u.k === 'cart' && !u.dead && u.city === c.id);
@@ -862,7 +895,7 @@ ${!ok ? '<p class="warn">This browser is blocking site storage, so only save fil
     if (d.drop) html += `<div class="muted">Drop-off for ${d.drop[0] === '*' ? 'all goods' : d.drop.join(', ')}</div>`;
     if (b.type === 'nest') html += `<div class="muted">Strength ${b.strength}. Spawns defenders while under attack. Select soldiers and right-click it to attack.</div>`;
     if (d.train && b.done) {
-      const t = trainTime(w);
+      const t = Math.round(trainTime(w, b) * 10) / 10;
       html += `<div class="muted">Each recruit uses 1 civilian + equipment · ${t}s</div><div class="actions">`;
       for (const k of TRAINABLE) {
         const u = w.UD[k], locked = u.research && !w.has(u.research);

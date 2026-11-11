@@ -1,5 +1,5 @@
 // Soldiers, squads, orders, training, towers and artillery.
-import { lists, hasStock, takeStock, costText } from './civ.js';
+import { lists, hasStock, takeStock, costText, regionFx } from './civ.js';
 
 export function newSquad(w, cityId, name, auto = false) {
   const s = { id: w.nextId++, name, city: cityId, auto, members: [], order: { t: 'idle', x: 0, y: 0 }, queue: [] };
@@ -370,7 +370,9 @@ export function consumeCiv(w, u) {
   u.dead = true;
 }
 
-export function trainTime(w) { return w.B.training.time * (w.has('fastTraining') ? 0.5 : 1); }
+export function trainTime(w, b = null) {
+  return w.B.training.time * (w.has('fastTraining') ? 0.5 : 1) * regionFx(w).train * ((b && w.BD[b.type].trainMult) || 1);
+}
 
 export function updateBarracks(w, b) {
   if (!b.queue.length) { b.stall = ''; return; }
@@ -384,7 +386,7 @@ export function updateBarracks(w, b) {
     if (!civ) { b.stall = 'No civilians available'; return; }
     takeStock(city, d.cost, w, 'Training');
     consumeCiv(w, civ);
-    b.training = k; b.trainT = trainTime(w); b.stall = '';
+    b.training = k; b.trainT = trainTime(w, b); b.stall = '';
   }
   b.trainT -= w.DT;
   if (b.trainT > 0) return;

@@ -124,6 +124,95 @@ export function updateCart(w, u) {
   }
 }
 
+// ---------------- trade network ----------------
+// Cities whose town halls are joined by an unbroken road (bridges count, walls on the road break it)
+// form a trade group. Every few seconds each outpost sends a share of its surplus above a working
+// reserve to the group's hub (the capital, else the oldest city), and the hub tops up outposts
+// that fall below their reserve. Trade pauses while either city is under attack.
+export function tradeGroups(w) {
+  if (w._tg && w._tgv === w.structVer) return w._tg;
+  const W = w.W, N = w.N, comp = w._roadComp || (w._roadComp = new Int32Array(N));
+  comp.fill(-1);
+  const isRoad = t => w.road[t] > 0 && w.hSpeed[t] > 0;
+  const stack = [];
+  let nc = 0;
+  for (let t0 = 0; t0 < N; t0++) {
+    if (comp[t0] >= 0 || !w.road[t0] || !isRoad(t0)) continue;
+    comp[t0] = nc; stack.push(t0);
+    while (stack.length) {
+      const t = stack.pop(), x = t % W;
+      for (const nt of [x > 0 ? t - 1 : -1, x < W - 1 ? t + 1 : -1, t - W, t + W]) {
+        if (nt < 0 || nt >= N || comp[nt] >= 0 || !isRoad(nt)) continue;
+        comp[nt] = nc; stack.push(nt);
+      }
+    }
+    nc++;
+  }
+  // Road components touching each town hall.
+  const R = w.B.trade.hallReach, touch = new Map();
+  for (const c of w.cities) {
+    const h = w.bMap.get(c.hall);
+    if (!h || h.dead || !h.done) continue;
+    const set = new Set();
+    for (let y = h.y - R; y < h.y + h.h + R; y++) for (let x = h.x - R; x < h.x + h.w + R; x++) {
+      if (!w.inMap(x, y)) continue;
+      const k = comp[y * W + x];
+      if (k >= 0) set.add(k);
+    }
+    if (set.size) touch.set(c.id, set);
+  }
+  // Union cities sharing a component.
+  const groups = [];
+  const left = [...touch.keys()];
+  while (left.length) {
+    const g = [left.shift()], comps = new Set(touch.get(g[0]));
+    for (let changed = true; changed;) {
+      changed = false;
+      for (let i = left.length - 1; i >= 0; i--) {
+        if ([...touch.get(left[i])].some(k => comps.has(k))) { for (const k of touch.get(left[i])) comps.add(k); g.push(left[i]); left.splice(i, 1); changed = true; }
+      }
+    }
+    if (g.length < 2) continue;
+    const cs = g.map(id => w.cityMap.get(id));
+    // Hub: the capital, else the oldest city (a pure function of structure, so caching stays deterministic).
+    const hub = cs.find(c => c.id === w.capital) || cs.slice().sort((a, b) => a.id - b.id)[0];
+    groups.push({ hub: hub.id, cities: cs.map(c => c.id).sort((a, b) => a - b) });
+  }
+  w._tg = groups; w._tgv = w.structVer;
+  return groups;
+}
+
+function tradeReserve(w, c, res) {
+  const T = w.B.trade;
+  if (res === 'food') return Math.ceil((c.nCiv + c.nSol) * w.B.food.perPersonPerDay * T.foodDays) + 20;
+  return T.reserve[res] || 0;
+}
+
+export function updateTrade(w) {
+  const T = w.B.trade;
+  if (w.tick % Math.round(T.interval / w.DT) !== 0) return;
+  const calm = c => w.tick - c.lastAttack > T.attackPause / w.DT;
+  for (const g of tradeGroups(w)) {
+    const H = w.cityMap.get(g.hub);
+    if (!H || !calm(H)) continue;
+    for (const id of g.cities) {
+      if (id === H.id) continue;
+      const C = w.cityMap.get(id);
+      if (!C || !calm(C)) continue;
+      for (const res of w.B.resources) {
+        const rc = tradeReserve(w, C, res), rh = tradeReserve(w, H, res);
+        let amt = 0;
+        if (C.stock[res] > rc) amt = Math.min(T.maxPerTrip, Math.floor((C.stock[res] - rc) * T.share));
+        else if (C.stock[res] < rc && H.stock[res] > rh) amt = -Math.min(T.maxPerTrip, Math.floor(rc - C.stock[res]), Math.floor(H.stock[res] - rh));
+        if (!amt) continue;
+        C.stock[res] -= amt; H.stock[res] += amt;
+        flow(w, C, res, -amt, amt > 0 ? `Trade to ${H.name}` : `Trade from ${H.name}`);
+        flow(w, H, res, amt, amt > 0 ? `Trade from ${C.name}` : `Trade to ${C.name}`);
+      }
+    }
+  }
+}
+
 // ---------------- settlers ----------------
 // Two kinds of party: 'city' founds a new city in an unsettled region; 'camp' builds an
 // outpost in the source city's own region that extends its build area.
@@ -242,6 +331,7 @@ function disband(w, p, ms, city) {
 }
 
 export function updateLogistics(w) {
+  updateTrade(w);
   for (const p of w.parties.slice()) updateParty(w, p);
   if (w.tick % 20 !== 0) return;
   for (const r of w.routes) {

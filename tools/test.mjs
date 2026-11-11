@@ -2,8 +2,8 @@
 import { newWorld, loadDefs } from './headless.mjs';
 import { build, run, findSpot } from './scenario.mjs';
 import { serialize, deserialize, stateHash } from '../src/sim/save.js';
-import { canFound } from '../src/sim/logistics.js';
-import { canPlace, flowSummary } from '../src/sim/civ.js';
+import { canFound, tradeGroups } from '../src/sim/logistics.js';
+import { canPlace, flowSummary, regionFx, buildCost, auraMult, createCity } from '../src/sim/civ.js';
 import { TER } from '../src/sim/map.js';
 import { Graph } from '../src/sim/pathing.js';
 
@@ -262,6 +262,53 @@ const starterTown = w => {
   for (const u of pile) { u.x = c.cx + 10.5; u.y = c.cy + 10.5; u.dx = u.x; u.dy = u.y; u.path = null; u.arrived = true; }
   run(w, 100);
   check('spread: a stacked group separates', minGap(pile) >= 0.7, `closest ${minGap(pile).toFixed(2)}`);
+}
+
+// 4d. Regions: bonuses, special buildings, road trade
+{
+  const w = newWorld(26); const cap = starterTown(w);
+  cap.stock.wood += 2000; cap.stock.stone += 500;
+  run(w, 50);
+  // Settle a region directly: city + finished town hall at its seed.
+  const settle = rid => {
+    const [sx, sy] = w.map.def.regions[rid].seed;
+    w.revealAround(sx, sy, 40);
+    killDormantNear(w, sx, sy, 60);
+    const t = w.passableNear(w.tileOf(sx, sy), w.hSpeed, 10), x = t % w.W, y = (t / w.W) | 0;
+    const c = createCity(w, rid, x + 1.5, y + 1.5);
+    c.hall = w.addBuilding('townhall', x, y, c.id, true).id;
+    c.stock.wood = 500; c.stock.stone = 300; c.stock.food = 300;
+    return c;
+  };
+  check('regions: no bonus before settling', !regionFx(w).yield.farm && buildCost(w, 'swall').stone === w.BD.swall.cost.stone);
+  const rv = settle(1), gs = settle(3);
+  check('regions: Riverlands boosts farms', regionFx(w).yield.farm === 1.25);
+  check('regions: Greystone makes stone walls cheaper', buildCost(w, 'swall').stone < w.BD.swall.cost.stone, `${buildCost(w, 'swall').stone} vs ${w.BD.swall.cost.stone}`);
+  const home = findSpot(w, 'farm', cap.cx, cap.cy), hr = canPlace(w, 'watermill', home[0], home[1]);
+  check('regions: special buildings only in their region', hr.reason === 'Only in Riverlands', hr.reason);
+  const mill = build(w, 'watermill', rv.cx, rv.cy);
+  check('regions: watermill can be built in Riverlands', !!mill);
+  if (mill) {
+    run(w, Math.ceil(w.BD.watermill.build / w.DT) + 5);
+    const farm = build(w, 'farm', mill.x + 1, mill.y + 1);
+    check('regions: watermill boosts nearby farms', farm && auraMult(w, farm) === 1.4, farm ? `x${auraMult(w, farm)}` : 'no farm spot');
+  }
+  check('regions: losing the town hall drops the bonus', (() => { w.destroyBuilding(w.bMap.get(rv.hall)); return !regionFx(w).yield.farm; })());
+
+  // Trade: lay a road between the capital's and Greystone's town halls.
+  const h1 = w.bMap.get(cap.hall), h2 = w.bMap.get(gs.hall);
+  const road = (x0, y0, x1, y1) => { for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) w.setRoad(y0 * w.W + x, 1); for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) w.setRoad(y * w.W + x1, 1); };
+  road(h1.x + 1, h1.y + 3, h2.x + 1, h2.y + 3);
+  const g = tradeGroups(w);
+  check('trade: road-linked town halls form a group with the capital as hub', g.length === 1 && g[0].hub === cap.id && g[0].cities.includes(gs.id), JSON.stringify(g));
+  gs.stock.stone = 1000; gs.stock.food = 0; cap.stock.food = 1000;
+  const capStone = cap.stock.stone;
+  run(w, 101);
+  check('trade: outpost surplus flows to the hub', cap.stock.stone > capStone && gs.stock.stone < 1000, `hub stone ${capStone.toFixed(0)} -> ${cap.stock.stone.toFixed(0)}`);
+  check('trade: hub tops up an outpost short on food', gs.stock.food > 0, `outpost food ${gs.stock.food.toFixed(0)}`);
+  const mid = h1.y + 3, bx = Math.round((h1.x + h2.x) / 2);
+  w.addBuilding('wall', bx, mid, cap.id, true);
+  check('trade: a wall across the road cuts the link', tradeGroups(w).length === 0);
 }
 
 // 5. Waves: undefended region is destroyed; save/load mid-wave is deterministic

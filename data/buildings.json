@@ -5,6 +5,7 @@
     "military": "#4F6D8A",
     "defense": "#4A4A4A",
     "hall": "#D4AF37",
+
     "nest": "#5A1414"
   },
   "types": {
@@ -48,6 +49,13 @@
     "catapult":   { "name": "Catapult", "desc": "Hurls stones for area damage at range 5\u201320. Needs a crew of 2.",        "label": "Ca", "cat": "defense",    "w": 2, "h": 2, "hp": 300, "cost": { "wood": 60, "stone": 40, "iron": 10 }, "build": 18, "defense": true, "blockH": true, "blockZ": true, "zCost": 20, "job": "military", "workers": 2, "crew": true, "artillery": { "range": 20, "minRange": 5, "reload": 5, "damage": 45, "radius": 2.5 }, "research": "catapult", "menu": "military" },
     "ballista":   { "name": "Ballista", "desc": "Fires bolts that pierce every zombie in a line. Needs a crew of 2.",        "label": "Bl", "cat": "defense",    "w": 2, "h": 2, "hp": 300, "cost": { "wood": 50, "iron": 15 }, "build": 16, "defense": true, "blockH": true, "blockZ": true, "zCost": 20, "job": "military", "workers": 2, "crew": true, "artillery": { "range": 16, "minRange": 0, "reload": 3, "damage": 35, "pierce": true, "width": 0.7 }, "research": "ballista", "menu": "military" },
 
+    "watermill":  { "name": "Watermill", "desc": "Grinds grain for the farms around it: farms within 14 tiles produce 40% more.", "label": "Wm", "cat": "production", "w": 3, "h": 3, "hp": 300, "cost": { "wood": 60, "stone": 20 }, "build": 15, "aura": { "types": ["farm"], "radius": 14, "mult": 1.4 }, "region": 1, "menu": "civic" },
+    "sawmill":    { "name": "Sawmill", "desc": "Saws logs for nearby crews: woodcutters within 14 tiles produce 50% more.", "label": "Sw", "cat": "production", "w": 3, "h": 2, "hp": 250, "cost": { "wood": 40, "stone": 20 }, "build": 12, "aura": { "types": ["woodcutter"], "radius": 14, "mult": 1.5 }, "region": 2, "menu": "industry" },
+    "masonyard":  { "name": "Mason's yard", "desc": "Dresses stone and ore: quarries and mines within 14 tiles produce 50% more.", "label": "My", "cat": "production", "w": 3, "h": 3, "hp": 300, "cost": { "wood": 50, "stone": 10 }, "build": 14, "aura": { "types": ["quarry", "mine"], "radius": 14, "mult": 1.5 }, "region": 3, "menu": "industry" },
+    "peatcutter": { "name": "Peat cutter", "desc": "Cuts peat from the marsh for fuel. No coal deposit needed.", "label": "Pt", "cat": "production", "w": 2, "h": 2, "hp": 150, "cost": { "wood": 25 }, "build": 10, "job": "materials", "workers": 3, "cycle": 35, "out": { "fuel": 3 }, "req": { "kind": "near", "terrain": ["marsh"], "radius": 4, "count": 8, "target": 30 }, "region": 4, "menu": "industry" },
+    "forge":      { "name": "Forge", "desc": "A great forge: turns iron and fuel into two swords at a time.", "label": "Fg", "cat": "production", "w": 3, "h": 3, "hp": 300, "cost": { "wood": 40, "stone": 40 }, "build": 16, "job": "military", "workers": 3, "cycle": 40, "in": { "iron": 1, "fuel": 1 }, "out": { "swords": 2 }, "region": 5, "menu": "industry" },
+    "crypt":      { "name": "Crypt of lore", "desc": "Scholars study the old dead: twice the research of a library.", "label": "Cr", "cat": "production", "w": 3, "h": 3, "hp": 300, "cost": { "wood": 40, "stone": 60 }, "build": 18, "job": "research", "workers": 3, "cycle": 20, "rp": 2, "region": 6, "menu": "civic" },
+    "warcamp":    { "name": "War camp", "desc": "Trains soldiers twice as fast as a barracks.", "label": "WC", "cat": "military", "w": 3, "h": 3, "hp": 500, "cost": { "wood": 60, "stone": 40 }, "build": 16, "train": true, "trainMult": 0.5, "region": 7, "menu": "military" },
     "nest":       { "name": "Zombie nest", "desc": "Spawns the dead. Destroy all four to win.",     "label": "N",  "cat": "nest",       "w": 4, "h": 4, "hp": 3000, "cost": {}, "build": 0, "blockH": true, "zombie": true, "vision": 0, "menu": false }
   }
 }
