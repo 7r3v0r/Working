@@ -41,8 +41,6 @@ export function lighten(hex, k = 0.45) {
   const [r, g, b] = hexToRgb(hex);
   return `rgb(${Math.round(r + (255 - r) * k)},${Math.round(g + (255 - g) * k)},${Math.round(b + (255 - b) * k)})`;
 }
-// Perceived brightness, 0..1.
-export function luma(hex) { const [r, g, b] = hexToRgb(hex); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; }
 // 0xAABBGGRR, the layout of a Uint32Array over ImageData on little-endian machines.
 export function abgr(hex, a = 1) { const [r, g, b] = hexToRgb(hex); return ((Math.round(a * 255) << 24) | (b << 16) | (g << 8) | r) >>> 0; }
 

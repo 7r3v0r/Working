@@ -13,7 +13,6 @@ const CLASSIC = {
   stroke: 'dark',                // building outline: 'dark', 'light', or one fixed color
   shadow: 0,                     // opacity of a flat drop shadow under buildings (0 = none)
   font: 'system-ui, sans-serif',
-  label: ['#3A2A10', '#F0F0F0'], // building letters on light / dark fills
   regionLabel: ['rgba(255,255,255,0.9)', 'rgba(0,0,0,0.55)'], // text, outline
   dormant: '#9E3A3A',
   infected: ['#E02424', '#7A1010'], nestHit: '#8E2020',
@@ -41,7 +40,7 @@ export const THEMES = {
     r: {
       bg: '#2A2018', fog: '#2A2018', fogSeen: 0.5, night: 'rgba(35,30,80,0.38)',
       sel: '#1A1410', stroke: '#3B2E20', font: 'Georgia, "Times New Roman", serif',
-      label: ['#2E2416', '#F4ECD8'], regionLabel: ['#F4ECD8', 'rgba(42,32,24,0.85)'],
+      regionLabel: ['#F4ECD8', 'rgba(42,32,24,0.85)'],
       dormant: '#8E5A4E', infected: ['#C9311C', '#6E1D14'], nestHit: '#A3382A',
       arrow: 'rgba(40,30,20,0.7)', bolt: 'rgba(40,30,20,0.9)', order: ['#27508C', '#C9311C'], ring: 'rgba(46,36,22,0.45)',
       mini: { civ: '#3B2E20', army: '#27508C', z: '#C9311C', wall: '#4A3E32', frame: '#F4ECD8' },
@@ -62,7 +61,7 @@ export const THEMES = {
     r: {
       bg: '#04060A', fog: '#04060A', fogSeen: 0.5, night: 'rgba(0,8,40,0.38)',
       stroke: 'light', font: 'ui-monospace, "Cascadia Mono", Consolas, monospace',
-      label: ['#0B0F14', '#E8F1F5'], regionLabel: ['#C8EBF0', 'rgba(0,0,0,0.7)'],
+      regionLabel: ['#C8EBF0', 'rgba(0,0,0,0.7)'],
       dormant: '#8A2A40', infected: ['#FF3B5C', '#7A1230'], nestHit: '#C22848',
       arrow: 'rgba(190,240,255,0.7)', bolt: 'rgba(255,230,160,0.95)', order: ['#4FE3C1', '#FF3B5C'], ring: 'rgba(79,227,193,0.4)',
       mini: { civ: '#FFD75A', army: '#3DA5FF', z: '#FF3B5C', wall: '#6A727C' },
@@ -84,7 +83,7 @@ export const THEMES = {
     r: {
       bg: '#1C3340', fog: '#1C3340', fogSeen: 0.45, night: 'rgba(20,30,95,0.38)',
       sel: '#14222B', stroke: 'dark', shadow: 0.22,
-      label: ['#33291A', '#FFFFFF'], regionLabel: ['#FFFFFF', 'rgba(20,34,43,0.75)'],
+      regionLabel: ['#FFFFFF', 'rgba(20,34,43,0.75)'],
       dormant: '#9A4860', infected: ['#D81E3F', '#5C1B3A'], nestHit: '#A32448',
       arrow: 'rgba(40,40,50,0.65)', bolt: 'rgba(40,40,50,0.9)', order: ['#1E5AE0', '#D81E3F'], ring: 'rgba(255,255,255,0.6)',
       mini: { civ: '#40332B', army: '#1E5AE0', z: '#D81E3F', wall: '#6C7480' },

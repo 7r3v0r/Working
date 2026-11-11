@@ -463,7 +463,7 @@ ${!ok ? '<p class="warn">This browser is blocking site storage, so only save fil
     this.dialog(`<h1>Squares of the Dead</h1>
 <p>Grow a medieval economy, arm it, and ship soldiers and goods to wherever the next wave lands. <b>Destroy all four zombie nests to win.</b> Lose your capital's town hall and the run is over.</p>
 <div class="legend">${['civ', 'peasant', 'sword', 'spear', 'archer', 'cav', 'scout', 'zombie', 'cart'].map(k => `<span class="chip">${sw(UD[k].color)} ${UD[k].name}</span>`).join('')}</div>
-<p class="muted">Every person is one square. Waves arrive at night and are announced at least a day ahead. Anyone killed by a zombie rises again; a zombie that breaks into an occupied building turns everyone inside.</p>
+<p class="muted">Zoomed out, every person is one square; zoom in to see them. Waves arrive at night and are announced at least a day ahead. Anyone killed by a zombie rises again; a zombie that breaks into an occupied building turns everyone inside.</p>
 <div class="keys">
 <kbd>WASD</kbd><span>Pan (or edge-scroll, middle-drag, minimap)</span>
 <kbd>Wheel</kbd><span>Zoom</span>

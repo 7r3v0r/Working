@@ -1,16 +1,21 @@
 // Canvas 2D renderer: pre-rendered ground and fog (1 px per tile, scaled up), flat-colored squares for everything else.
-import { buildPalette, tileColor, darken, lighten, luma, abgr } from './colors.js';
+import { buildPalette, tileColor, darken, lighten, abgr } from './colors.js';
+import { buildSprites } from './sprites.js';
+
+// Zoom (px per tile) from which sprites are drawn. Below it buildings are flat blocks and units are squares,
+// which read better at that size and cost less. The art is 16 px per tile, so it is smoothed when drawn smaller.
+const SPRITE_ZOOM = 8, UNIT_SPRITE_ZOOM = 10;
 
 export class Renderer {
   constructor(canvas) {
     this.cv = canvas;
     this.ctx = canvas.getContext('2d');
-    this.cam = { x: 330, y: 400, s: 8 };
+    this.cam = { x: 330, y: 400, s: 16 };
     this.overlays = { threat: false, borders: false, vision: false };
     this.vw = 800; this.vh = 600; this.dpr = 1;
     this.buckets = new Map();
     this.th = null;      // renderer colors of the active style (themes.js)
-    this.bcol = new Map(); // building fill -> [outline, label]
+    this.bcol = new Map(); // building fill -> outline color
   }
 
   // Switch style: repaint the ground and fog with the new colors. Everything else is read at draw time.
@@ -18,7 +23,7 @@ export class Renderer {
     this.th = th;
     this.bcol.clear();
     this.fogDark = abgr(th.fog); this.fogSeen = abgr(th.fog, th.fogSeen);
-    if (this.w) { this.paintGround(); this.forceFog = true; }
+    if (this.w) { this.paintGround(); this.forceFog = true; this.spr = buildSprites(this.w.defs); }
   }
   paintGround() {
     const w = this.w, d = this.gimg.data, N = w.N;
@@ -30,15 +35,29 @@ export class Renderer {
     this.gctx.putImageData(this.gimg, 0, 0);
     w.dirtyTiles.length = 0;
   }
-  // Outline and label colors for a building fill, computed once per color.
-  bStyle(fill) {
+  // Outline color for a flat building fill, computed once per color.
+  bStroke(fill) {
     let v = this.bcol.get(fill);
     if (!v) {
-      const th = this.th, k = th.stroke;
-      v = [k === 'dark' ? darken(fill, 0.6) : k === 'light' ? lighten(fill, 0.45) : k, th.label[luma(fill) > 0.6 ? 0 : 1]];
+      const k = this.th.stroke;
+      v = k === 'dark' ? darken(fill, 0.6) : k === 'light' ? lighten(fill, 0.45) : k;
       this.bcol.set(fill, v);
     }
     return v;
+  }
+
+  // The unit sprites scaled to q px per tile, redrawn only when the zoom step or the atlas changes. Units are then
+  // copied from it at 1:1, so no per-unit scaling or smoothing happens while drawing a frame.
+  unitAtlas(q) {
+    if (this.uaQ !== q || this.uaSrc !== this.spr) {
+      const S = this.spr, k = q / 16, cells = S.cells, c = this.ua || (this.ua = document.createElement('canvas'));
+      c.width = S.cv.width * k; c.height = S.cv.height * k;
+      const g = c.getContext('2d');
+      g.imageSmoothingEnabled = q < 16; g.imageSmoothingQuality = 'high';
+      for (let i = 0; i < cells.length; i += 4) g.drawImage(S.cv, cells[i], cells[i + 1], cells[i + 2], cells[i + 3], cells[i] * k, cells[i + 1] * k, cells[i + 2] * k, cells[i + 3] * k);
+      this.uaQ = q; this.uaSrc = S;
+    }
+    return this.ua;
   }
 
   setWorld(w) {
@@ -48,6 +67,7 @@ export class Renderer {
     this.ground = mk(); this.gctx = this.ground.getContext('2d');
     this.gimg = this.gctx.createImageData(W, H);
     this.paintGround();
+    this.spr = buildSprites(w.defs);
     this.fog = mk(); this.fctx = this.fog.getContext('2d');
     this.fimg = this.fctx.createImageData(W, H);
     this.f32 = new Uint32Array(this.fimg.data.buffer);
@@ -77,7 +97,7 @@ export class Renderer {
   minScale() { return Math.min(this.vw / this.w.W, this.vh / this.w.H) * 0.95; }
   clampCam() {
     const c = this.cam, w = this.w;
-    c.s = Math.max(this.minScale(), Math.min(24, c.s));
+    c.s = Math.max(this.minScale(), Math.min(32, c.s));
     const hw = this.vw / 2 / c.s, hh = this.vh / 2 / c.s;
     c.x = hw * 2 >= w.W ? w.W / 2 : Math.max(hw, Math.min(w.W - hw, c.x));
     c.y = hh * 2 >= w.H ? w.H / 2 : Math.max(hh, Math.min(w.H - hh, c.y));
@@ -162,9 +182,9 @@ export class Renderer {
     const w = this.w, ctx = this.ctx, s = this.cam.s, BD = w.BD, CC = w.defs.buildings.categoryColors, th = this.th;
     const flash = (performance.now() / 250 | 0) % 2 === 0;
     const sel = ui && ui.sel.building;
-    const labels = s >= 10;
-    if (labels) { ctx.font = `bold ${Math.min(13, s * 0.8) | 0}px ${th.font}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; }
-    if (th.shadow && s >= 3) { // flat drop shadows: one path, one fill, under every building
+    const spr = s >= SPRITE_ZOOM ? this.spr : null;
+    if (spr) ctx.imageSmoothingEnabled = s < 16; // smooth only when scaling the 16 px art down
+    if (th.shadow && s >= 3 && !spr) { // flat drop shadows: one path, one fill, under every flat building
       const o = Math.min(4, s * 0.3);
       ctx.fillStyle = '#000'; ctx.globalAlpha = th.shadow;
       ctx.beginPath();
@@ -180,19 +200,27 @@ export class Renderer {
       if (b.dead || b.x + b.w < tx0 || b.y + b.h < ty0 || b.x > tx1 || b.y > ty1) continue;
       if (!w.explored[b.y * w.W + b.x]) continue;
       const d = BD[b.type];
-      const [sx, sy] = this.toScreen(b.x, b.y);
+      let [sx, sy] = this.toScreen(b.x, b.y);
+      if (spr) { sx = Math.round(sx); sy = Math.round(sy); }
       const bw = b.w * s, bh = b.h * s;
-      const base = d.color || CC[d.cat], bs = this.bStyle(base);
+      const base = d.color || CC[d.cat];
       let col = base;
       if (b.infected) col = th.infected[flash ? 0 : 1];
       else if (d.zombie) col = flash || w.tick - b.lastHit > 30 ? CC.nest : th.nestHit;
+      const a = spr && spr.b[b.type];
       ctx.globalAlpha = b.done ? 1 : 0.45;
-      ctx.fillStyle = col;
-      ctx.fillRect(sx, sy, bw, bh);
-      if (s >= 3) {
-        ctx.strokeStyle = b.id === sel ? th.sel : bs[0];
-        ctx.lineWidth = b.id === sel ? 2 : 1;
-        ctx.strokeRect(sx + 0.5, sy + 0.5, bw - 1, bh - 1);
+      if (a) {
+        ctx.drawImage(spr.cv, a.x, a.y, a.w, a.h, sx, sy, bw, bh);
+        if (col !== base) { ctx.globalAlpha = 0.5; ctx.fillStyle = col; ctx.fillRect(sx, sy, bw, bh); } // infected, or a nest taking hits
+        if (b.id === sel) { ctx.globalAlpha = 1; ctx.strokeStyle = th.sel; ctx.lineWidth = 2; ctx.strokeRect(sx + 0.5, sy + 0.5, bw - 1, bh - 1); }
+      } else {
+        ctx.fillStyle = col;
+        ctx.fillRect(sx, sy, bw, bh);
+        if (s >= 3) {
+          ctx.strokeStyle = b.id === sel ? th.sel : this.bStroke(base);
+          ctx.lineWidth = b.id === sel ? 2 : 1;
+          ctx.strokeRect(sx + 0.5, sy + 0.5, bw - 1, bh - 1);
+        }
       }
       ctx.globalAlpha = 1;
       if (!b.done && s >= 3) { ctx.fillStyle = '#F2D16B'; ctx.fillRect(sx, sy + bh - 2, bw * b.prog, 2); }
@@ -201,23 +229,45 @@ export class Renderer {
         ctx.fillStyle = '#000'; ctx.fillRect(sx, sy - 3, bw, 2);
         ctx.fillStyle = b.hp / mhp > 0.5 ? '#6BCB4F' : '#E0A030'; ctx.fillRect(sx, sy - 3, bw * Math.max(0, b.hp / mhp), 2);
       }
-      if (labels && d.label && b.w * s >= 14) {
-        ctx.fillStyle = bs[1];
-        ctx.fillText(d.label, sx + bw / 2, sy + bh / 2);
-      }
       if (d.garrison && b.inside.length && s >= 4) {
         ctx.fillStyle = w.UD.archer.color;
         for (let i = 0; i < b.inside.length; i++) ctx.fillRect(sx + 2 + i * 3, sy + 2, 2, 2);
       }
     }
+    ctx.imageSmoothingEnabled = false;
   }
 
   drawUnits(alpha, x0, y0, x1, y1, ui) {
     const w = this.w, ctx = this.ctx, s = this.cam.s, UD = w.UD, W = w.W, vis = w.visible;
+    const selU = ui ? ui.sel.units : null, sel = [];
+    const vw2 = this.vw / 2, vh2 = this.vh / 2, cx = this.cam.x, cy = this.cam.y;
+    if (s >= UNIT_SPRITE_ZOOM) {
+      // Sprites: one unscaled drawImage per unit, all from the same atlas. They are drawn at a whole number of px per tile.
+      const S = this.spr, q = Math.round(s), k = q / 16, img = this.unitAtlas(q), U = S.u, dormant = U.zombieDormant;
+      for (const u of w.units) {
+        if (u.dead || u.inside) continue;
+        const x = u.px + (u.x - u.px) * alpha, y = u.py + (u.y - u.py) * alpha;
+        if (x < x0 || x > x1 || y < y0 || y > y1) continue;
+        if (u.isZ && !vis[(y | 0) * W + (x | 0)]) continue;
+        const a = u.isZ && u.dormant ? dormant : U[u.k], c = a.c * k, d2 = c / 2;
+        const f = u.x !== u.px || u.y !== u.py ? 1 + (((x + y) * 2.5 | 0) & 1) : 0; // walk frames follow distance moved
+        const dx = Math.round((x - cx) * s + vw2 - d2), dy = Math.round((y - cy) * s + vh2 - d2);
+        ctx.drawImage(img, a.x * k + f * c, a.y * k + (u.x < u.px ? c : 0), c, c, dx, dy, c, c); // the mirrored copy when heading left
+        const load = u.carry ? S.load[u.carry.r] : u.cargo ? S.cargo[u.cargo.r] : null;
+        if (load) ctx.drawImage(img, load.x * k, load.y * k, c, c, dx, u.carry ? dy - (c >> 2) : dy, c, c);
+        if (selU && selU.has(u.id)) { const z = (UD[u.k].size || 1) * q; sel.push(dx + d2 - z / 2, dy + d2 - z / 2, z); }
+      }
+      if (sel.length) {
+        ctx.strokeStyle = this.th.sel; ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i < sel.length; i += 3) ctx.rect(sel[i] - 0.5, sel[i + 1] - 0.5, sel[i + 2] + 1, sel[i + 2] + 1);
+        ctx.stroke();
+      }
+      return;
+    }
+    // Zoomed out: flat squares, batched into one path per color.
     const B = this.buckets, dormant = this.th.dormant;
     for (const v of B.values()) v.length = 0;
-    const selU = ui ? ui.sel.units : null;
-    const sel = [];
     const carriers = [];
     for (const u of w.units) {
       if (u.dead || u.inside) continue;
@@ -229,10 +279,8 @@ export class Renderer {
       const sz = (UD[u.k].size || 1);
       arr.push(x, y, sz);
       if (selU && selU.has(u.id)) sel.push(x, y, sz);
-      if (u.carry && s >= 4) carriers.push(x, y, w.B.resourceColors[u.carry.r]);
-      else if (u.cargo && s >= 3) carriers.push(x, y, w.B.resourceColors[u.cargo.r]);
+      if ((u.carry && s >= 4) || (u.cargo && s >= 3)) carriers.push(x, y, w.B.resourceColors[(u.carry || u.cargo).r]);
     }
-    const vw2 = this.vw / 2, vh2 = this.vh / 2, cx = this.cam.x, cy = this.cam.y;
     const minPx = 1.5;
     for (const [col, a] of B) {
       if (!a.length) continue;

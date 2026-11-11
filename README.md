@@ -1,8 +1,8 @@
 # Squares of the Dead
 
-A real-time, top-down colony-defense game for the desktop browser. Build a medieval economy across a 1,000 × 750 tile map, defend your cities from zombie waves, and win by destroying all four zombie nests. Every person is a single colored square.
+A real-time, top-down colony-defense game for the desktop browser. Build a medieval economy across a 1,000 × 750 tile map, defend your cities from zombie waves, and win by destroying all four zombie nests. Zoomed out, every person is a single colored square; zoomed in, people and buildings are 16 px pixel art.
 
-Vanilla JavaScript (ES modules) and Canvas 2D. No framework, no build step, no server logic.
+Vanilla JavaScript (ES modules) and Canvas 2D. No framework, no build step, no server logic, no image files.
 
 ## Run it
 
@@ -43,7 +43,7 @@ The suite covers the economy, infection, settlers, carts, starvation, training, 
 | Key | Action |
 | --- | --- |
 | WASD / arrows, edge-scroll, middle-drag, minimap | Pan |
-| Mouse wheel | Zoom (whole map to 24 px per tile) |
+| Mouse wheel | Zoom (whole map to 32 px per tile; pixel art from 8 px per tile for buildings and 10 for units) |
 | Left click / drag | Select a soldier or building / box-select soldiers (Shift adds) |
 | Double-click | Select a soldier's whole squad |
 | Right click | Move. On a nest or infected building: attack. On a tower: garrison. Shift+right-click: add a move waypoint (queued after the current move) |
@@ -63,7 +63,7 @@ The suite covers the economy, infection, settlers, carts, starvation, training, 
 data/        map, units, buildings, research, balance (all tuning numbers live here)
 src/sim/     pure simulation, no DOM: world, map rasterizer, pathing, economy (civ),
              military, zombies (AI/infection/threat/waves), logistics, vision, save
-src/render/  Canvas 2D renderer + minimap, visual styles (themes.js)
+src/render/  Canvas 2D renderer + minimap, visual styles (themes.js), pixel-art sprites (sprites.js)
 src/ui/      DOM panels, input, Web Audio alerts
 tools/       headless runner + test suite
 ```
@@ -75,6 +75,7 @@ Key technical choices:
 - **Hierarchical pathfinding:** 8 × 8 chunks are split into connected components, and A* runs over those components. Tile A* refines the next stretch of the route. Zombies share Dijkstra flow fields over the same graph and switch to a local tile flow field near their target city. In that local field, walls are passable at a cost, so zombies attack them.
 - **Spatial hash** for neighbor queries.
 - **Pre-rendered ground and fog:** each is drawn at 1 px per tile and scaled up.
+- **Sprites drawn in code:** `src/render/sprites.js` paints every unit and building (16 px per tile) into one atlas canvas when a game or style loads. Each unit is then one unscaled `drawImage` from a copy of the atlas cached at the current zoom. Below 10 px per tile units fall back to squares batched into one path per color, and below 8 px per tile buildings fall back to flat blocks.
 
 ## Where this differs from the PRD
 
