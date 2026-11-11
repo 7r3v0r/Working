@@ -51,6 +51,7 @@ The suite covers the economy, infection, settlers, carts, starvation, training, 
 | Hover a resource | Net rate per game minute over the last 2 minutes, with sources and uses |
 | T, Y, V | Threat heatmap, region borders and vision overlays |
 | Del, Esc | Demolish the selected building; cancel or deselect |
+| Repair button | On a damaged building's panel, or "Repair all" in the City panel |
 
 ## Code layout
 
@@ -83,4 +84,7 @@ These are tuning or scope decisions. All the numbers live in `data/`.
 - **Starting garrison:** you start with 3 swordsmen and 3 archers in addition to the 30 civilians.
 - **Timing of raids and packs:** nest raids start on day 3 and only target cities within 260 tiles of a nest. Roaming packs start on day 2.
 - **Fog and pathing:** soldiers and civilians plan routes on what you have explored. Unexplored ground counts as open, so a unit heads straight into the unknown and reroutes when it reaches a river or cliff it hadn't seen.
+- **Gates:** a gate can be drawn straight over a wall; the wall is removed when the gate is placed. The tile is open until the gate finishes building (4–6 s).
+- **Repairs:** cost half the building's price scaled by missing HP, paid up front. HP returns over the build time scaled by missing HP (at least 3 s) and pauses while the building is under attack.
+- **Zombies nearby:** nothing can be built, and no road laid, within 10 tiles of a zombie you can see.
 - **Garrison:** only towers can be garrisoned, by up to 5 archers each. Giving G on another building moves the squad next to it.

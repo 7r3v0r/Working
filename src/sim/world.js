@@ -525,10 +525,12 @@ export class World {
         continue;
       }
       if (b.infected) {
+        b.repairT = 0;
         b.infT -= DT;
         if (b.infT <= 0) this.destroyBuilding(b, 'overrun');
         continue;
       }
+      if (b.repairT > 0) Civ.updateRepair(this, b);
       if (b.breach > 0) b.breach = Math.max(0, b.breach - DT);
       if (d.train) Mil.updateBarracks(this, b);
       else if (d.carts) Log.updateDepot(this, b);
@@ -542,6 +544,7 @@ export class World {
     switch (c.t) {
       case 'build': return Civ.cmdBuild(this, c);
       case 'line': return Civ.cmdLine(this, c);
+      case 'repair': return Civ.cmdRepair(this, c);
       case 'demolish': { const b = this.bMap.get(c.b); if (b && b.city && b.type !== 'nest') { this.destroyBuilding(b, 'demolished'); } return { ok: true }; }
       case 'priority': { const city = this.cityMap.get(c.city); if (city) city.pri[c.cat] = c.val; return { ok: true }; }
       case 'research': return Civ.cmdResearch(this, c);

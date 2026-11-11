@@ -3,6 +3,7 @@ export class Spatial {
   constructor(W, H, cs = 4) {
     this.cs = cs; this.cw = Math.ceil(W / cs); this.ch = Math.ceil(H / cs);
     this.head = new Int32Array(this.cw * this.ch);
+    this.head.fill(-1);
     this.next = new Int32Array(8192);
     this.units = [];
   }

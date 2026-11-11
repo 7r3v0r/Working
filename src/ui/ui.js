@@ -1,5 +1,5 @@
 // DOM UI + input handling. Reads the world, issues commands through world.cmd().
-import { canPlace, canRoad, costText, lists, CATS, cityOfRegion, campsOf, flowSummary } from '../sim/civ.js';
+import { canPlace, canRoad, costText, lists, CATS, cityOfRegion, campsOf, flowSummary, canRepair, repairCost } from '../sim/civ.js';
 import { canFound, partyCost } from '../sim/logistics.js';
 import { squadETA, trainTime } from '../sim/military.js';
 import { regionThreat } from '../sim/zombies.js';
@@ -376,6 +376,15 @@ export class UI {
       case 'qcancel': if (b) res(w.cmd({ t: 'cancelTrain', b: b.id, i: +ds.i })); break;
       case 'cart': if (b) res(w.cmd({ t: 'buildCart', b: b.id, n: +ds.n || 1 })); break;
       case 'demolish': this.demolish(); break;
+      case 'repair': if (b) res(w.cmd({ t: 'repair', b: b.id })); break;
+      case 'repair-all': {
+        const c = this.curCity();
+        const ids = c ? lists(w, c).all.filter(x => x.done && !x.infected && !(x.repairT > 0) && x.hp < (x.maxHp || w.BD[x.type].hp) - 0.5).sort((p, q) => p.hp / w.BD[p.type].hp - q.hp / w.BD[q.type].hp).map(x => x.id) : [];
+        const r = w.cmd({ t: 'repair', b: ids });
+        this.flash(r.n ? `Repairing ${r.n} structure${r.n > 1 ? 's' : ''}${r.n < ids.length ? ` (${ids.length - r.n} more need materials)` : ''}` : (r.reason || 'Nothing to repair'));
+        this.lastHtml = {};
+        break;
+      }
       case 'deselect': this.sel.units.clear(); this.sel.building = 0; break;
       case 'sq-hold': this.order('hold'); break;
       case 'sq-amove': this.setMode({ k: 'amove' }); break;
@@ -724,6 +733,13 @@ export class UI {
     }
     for (const [k, a] of Object.entries(agg)) html += `<tr><td>${w.BD[k].name}${a.build ? ` <span class="muted">(${a.build} building)</span>` : ''}</td><td class="n">${a.n}</td><td class="n">${a.need ? `${a.s}/${a.need}` : ''}</td></tr>`;
     html += '</table>';
+    const dmg = L.all.filter(x => x.done && !x.infected && x.hp < (x.maxHp || w.BD[x.type].hp) - 0.5);
+    if (dmg.length) {
+      const tot = {}, fixing = dmg.filter(x => x.repairT > 0).length;
+      for (const x of dmg) if (!(x.repairT > 0)) for (const [k, v] of Object.entries(repairCost(w, x))) tot[k] = (tot[k] || 0) + v;
+      html += `<div class="row">${dmg.length} damaged${fixing ? ` · ${fixing} being repaired` : ''}</div>`;
+      if (dmg.length > fixing) html += `<div class="actions"><button data-act="repair-all">Repair all${Object.keys(tot).length ? ` (${costText(tot)})` : ''}</button></div>`;
+    }
     const S = w.B.settlers, Cp = w.B.camp;
     html += `<h3>Expand</h3><p class="muted">Send ${S.civilians} civilians with ${costText(partyCost(w, 'city'))} to found a settlement in another region, or ${Cp.civilians} civilians with ${costText(partyCost(w, 'camp'))} to set up a camp that extends this city's build area by ${Cp.radius} tiles.</p><div class="actions"><button data-act="found" data-kind="city">Found settlement…</button><button data-act="found" data-kind="camp">Found camp…</button>${c.hall ? `<button data-act="goto" data-x="${c.cx}" data-y="${c.cy}">Go to town hall</button>` : ''}</div>`;
     return html;
@@ -843,7 +859,13 @@ export class UI {
       if (b.queue.length) html += `<div class="muted">Queue: ${b.queue.length}${b.training ? ` · next in ${Math.ceil(b.trainT)}s` : ''}</div>`;
       if (b.stall) html += `<div class="warn">${esc(b.stall)}</div>`;
     }
-    if (b.city) html += `<div class="actions"><button data-act="demolish">Demolish</button><button data-act="deselect">✕</button></div>`;
+    let rep = '';
+    if (b.repairT > 0) html += `<div>Repairing · ${Math.ceil(b.repairT)}s left${w.tick - b.lastHit < w.B.repair.hitPause / w.DT ? ' <span class="warn">(paused: under attack)</span>' : ''}</div>`;
+    else if (b.city && b.done && !b.infected && b.hp < mhp - 0.5) {
+      const r = canRepair(w, b), cost = repairCost(w, b);
+      rep = `<button data-act="repair" ${r.ok ? '' : `title="${esc(r.reason)}" class="poor"`}>Repair${Object.keys(cost).length ? ` (${costText(cost)})` : ''}</button>`;
+    }
+    if (b.city) html += `<div class="actions">${rep}<button data-act="demolish">Demolish</button><button data-act="deselect">✕</button></div>`;
     return html;
   }
 }

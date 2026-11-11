@@ -476,6 +476,19 @@ export function placementCity(w, type, x, y) {
   return null;
 }
 
+// A visible zombie within B.city.zombieClear tiles of the footprint blocks building there.
+// Zombies hidden in the fog don't count, so this never reveals them.
+const _near = [];
+export function zombiesNear(w, x, y, bw = 1, bh = 1) {
+  const r = w.B.city.zombieClear;
+  for (const z of w.spatial.within(x + bw / 2, y + bh / 2, r + Math.max(bw, bh), true, _near)) {
+    if (!w.visible[w.tileOf(z.x, z.y)]) continue;
+    const dx = Math.max(x - z.x, 0, z.x - (x + bw)), dy = Math.max(y - z.y, 0, z.y - (y + bh));
+    if (dx * dx + dy * dy <= r * r) return true;
+  }
+  return false;
+}
+
 export function canPlace(w, type, x, y) {
   const d = w.BD[type];
   const fail = reason => ({ ok: false, reason });
@@ -483,12 +496,19 @@ export function canPlace(w, type, x, y) {
   if (d.research && !w.has(d.research)) return fail('Requires research');
   if (x < 1 || y < 1 || x + d.w >= w.W || y + d.h >= w.H) return fail('Out of bounds');
   const W = w.W;
+  let replace = null;
   for (let yy = y; yy < y + d.h; yy++) for (let xx = x; xx < x + d.w; xx++) {
     const t = yy * W + xx, ter = w.map.terrain[t];
     if (!w.explored[t]) return fail('Unexplored');
-    if (w.bAt[t]) return fail('Occupied');
+    if (w.bAt[t]) {
+      // Gates can go straight onto a wall; the wall is removed when the gate is placed.
+      const o = w.bMap.get(w.bAt[t]);
+      if (!(d.replaces && o && o.city && !o.infected && d.replaces.includes(o.type))) return fail('Occupied');
+      replace = o;
+    }
     if (ter === TER.RIVER || ter === TER.FORD || ter === TER.CLIFF) return fail('Blocked terrain');
   }
+  if (zombiesNear(w, x, y, d.w, d.h)) return fail(`Zombies within ${w.B.city.zombieClear} tiles`);
   const city = placementCity(w, type, x, y);
   if (!city) {
     const rc = cityOfRegion(w, w.regionAt(x + d.w / 2, y + d.h / 2));
@@ -502,13 +522,57 @@ export function canPlace(w, type, x, y) {
     if (d.req.target) yieldF = Math.max(0.5, Math.min(1.5, n / d.req.target));
   }
   if (!hasStock(city, d.cost)) return fail(`Not enough materials (${costText(d.cost)})`);
-  return { ok: true, city, yieldF };
+  return { ok: true, city, yieldF, replace };
+}
+
+// ---------------- repairs ----------------
+// Cost: the building's price × missing HP fraction × costMult. Time: build time × missing fraction × timeMult
+// (at least minTime). Paid up front; HP comes back gradually and pauses while the building is under attack.
+export function repairCost(w, b) {
+  const d = w.BD[b.type], miss = Math.max(0, 1 - b.hp / (b.maxHp || d.hp)), cost = {};
+  for (const k in d.cost) { const v = Math.ceil(d.cost[k] * miss * w.B.repair.costMult); if (v > 0) cost[k] = v; }
+  return cost;
+}
+export function canRepair(w, b) {
+  const fail = reason => ({ ok: false, reason });
+  if (!b || b.dead || !b.city) return fail('Nothing to repair');
+  if (!b.done) return fail('Still under construction');
+  if (b.infected) return fail('Infected — clear it first');
+  if (b.repairT > 0) return fail('Already being repaired');
+  const d = w.BD[b.type], mhp = b.maxHp || d.hp;
+  if (b.hp >= mhp - 0.5) return fail('Not damaged');
+  const c = w.cityMap.get(b.city);
+  if (!c) return fail('No city');
+  const cost = repairCost(w, b);
+  if (!hasStock(c, cost)) return fail(`Repair needs ${costText(cost)}`);
+  const R = w.B.repair;
+  return { ok: true, c, cost, time: Math.max(R.minTime, d.build * (1 - b.hp / mhp) * R.timeMult) };
+}
+export function cmdRepair(w, c) {
+  let n = 0, reason = '';
+  for (const id of [].concat(c.b)) {
+    const b = w.bMap.get(id), r = canRepair(w, b);
+    if (!r.ok) { reason = r.reason; continue; }
+    takeStock(r.c, r.cost, w, 'Repairs');
+    b.repairT = r.time; b.repairRate = ((b.maxHp || w.BD[b.type].hp) - b.hp) / r.time;
+    n++;
+  }
+  return { ok: n > 0, n, reason };
+}
+export function updateRepair(w, b) {
+  if (!(b.repairT > 0)) return;
+  if (w.tick - b.lastHit < w.B.repair.hitPause / w.DT) return;
+  const mhp = b.maxHp || w.BD[b.type].hp;
+  b.hp = Math.min(mhp, b.hp + b.repairRate * w.DT);
+  b.repairT -= w.DT;
+  if (b.repairT <= 1e-6 || b.hp >= mhp) { b.repairT = 0; b.hp = Math.max(b.hp, Math.round(b.hp)); }
 }
 
 export function cmdBuild(w, c) {
   const r = canPlace(w, c.type, c.x, c.y);
   if (!r.ok) return r;
   takeStock(r.city, w.BD[c.type].cost, w, 'Construction');
+  if (r.replace) w.destroyBuilding(r.replace, 'replaced');
   const b = w.addBuilding(c.type, c.x, c.y, r.city.id, false);
   b.yieldF = r.yieldF;
   if (c.type === 'townhall') r.city.hall = b.id;
@@ -522,6 +586,7 @@ export function canRoad(w, t, kind, payer) {
   const val = kind === 'sroad' ? 2 : 1;
   if (w.road[t] >= val) return { ok: false, reason: 'Already a road' };
   if (w.bAt[t]) { const b = w.bMap.get(w.bAt[t]); if (b && w.BD[b.type].blockH) return { ok: false, reason: 'Occupied' }; }
+  if (zombiesNear(w, t % w.W, (t / w.W) | 0)) return { ok: false, reason: `Zombies within ${w.B.city.zombieClear} tiles` };
   if (kind === 'sroad' && !w.has('stoneRoads')) return { ok: false, reason: 'Requires research' };
   const x = t % w.W, y = (t / w.W) | 0;
   const city = cityOfRegion(w, w.regionAt(x, y)) || payer;
@@ -549,6 +614,7 @@ export function cmdLine(w, c) {
       const r = canPlace(w, c.type, x, y);
       if (!r.ok) { reason = r.reason; continue; }
       takeStock(r.city, w.BD[c.type].cost, w, 'Construction');
+      if (r.replace) w.destroyBuilding(r.replace, 'replaced');
       w.addBuilding(c.type, x, y, r.city.id, false);
       placed++;
     }

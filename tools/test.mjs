@@ -212,6 +212,40 @@ const starterTown = w => {
   check('research: tech can be unlocked', r.ok && w.has('stoneWalls'));
 }
 
+// 4b. Gates over walls, repairs, no building next to zombies
+{
+  const w = newWorld(23); const c = starterTown(w);
+  c.stock.wood += 400; c.stock.stone += 100;
+  run(w, 50);
+  const wall = build(w, 'wall', c.cx + 8, c.cy);
+  run(w, 100);
+  const gr = w.cmd({ t: 'line', type: 'gate', pts: [[wall.x, wall.y]], city: c.id });
+  const g = w.bMap.get(w.bAt[wall.y * w.W + wall.x]);
+  check('gates: a gate replaces a wall in place', gr.ok && wall.dead && g && g.type === 'gate', gr.reason || '');
+  const house = w.buildings.find(b => b.type === 'house' && b.done);
+  check('gates: other buildings still block placement', canPlace(w, 'gate', house.x, house.y).reason === 'Occupied');
+
+  house.hp -= 100;
+  const mhp = w.BD.house.hp, wood0 = c.stock.wood;
+  const rr = w.cmd({ t: 'repair', b: house.id });
+  const paid = wood0 - c.stock.wood, want = Math.ceil(w.BD.house.cost.wood * (100 / mhp) * w.B.repair.costMult);
+  check('repair: costs resources up front', rr.ok && paid === want, `paid ${paid} wood, expected ${want}`);
+  run(w, 5);
+  check('repair: HP comes back gradually', house.hp > mhp - 100 && house.hp < mhp, `hp ${house.hp.toFixed(0)}/${mhp}`);
+  check('repair: one repair at a time', !w.cmd({ t: 'repair', b: house.id }).ok);
+  run(w, Math.ceil(house.repairT / w.DT) + 5);
+  check('repair: building restored to full HP', house.hp >= mhp && !house.repairT, `hp ${house.hp.toFixed(0)}`);
+
+  const spot = findSpot(w, 'house', c.cx, c.cy);
+  const z = w.spawn('zombie', spot[0] + 4.5, spot[1] + 1.5, { zg: { t: 'city', c: c.id } });
+  run(w, 10);
+  z.x = spot[0] + 4.5; z.y = spot[1] + 1.5; w.spatial.build(w.units);
+  const zr = canPlace(w, 'house', spot[0], spot[1]);
+  check('zombies: no building within 10 tiles of a visible zombie', !zr.ok && /Zombies/.test(zr.reason), zr.reason || 'allowed');
+  z.dead = true; w.spatial.build(w.units);
+  check('zombies: allowed again once the zombie is gone', canPlace(w, 'house', spot[0], spot[1]).ok);
+}
+
 // 5. Waves: undefended region is destroyed; save/load mid-wave is deterministic
 {
   const w = newWorld(15); const c = starterTown(w);
