@@ -246,6 +246,24 @@ const starterTown = w => {
   check('zombies: allowed again once the zombie is gone', canPlace(w, 'house', spot[0], spot[1]).ok);
 }
 
+// 4c. Soldiers don't stack: recruits fan out, idle soldiers on top of each other separate
+{
+  const w = newWorld(24); const c = starterTown(w);
+  c.stock.wood += 300; c.stock.stone += 100; c.stock.swords += 10;
+  const bar = build(w, 'barracks', c.cx, c.cy);
+  run(w, 200);
+  const before = new Set(w.units.filter(u => u.squad).map(u => u.id));
+  w.cmd({ t: 'train', b: bar.id, k: 'sword', n: 6 });
+  run(w, 1600);
+  const minGap = us => { let m = Infinity; for (let i = 0; i < us.length; i++) for (let j = i + 1; j < us.length; j++) m = Math.min(m, Math.hypot(us[i].x - us[j].x, us[i].y - us[j].y)); return m; };
+  const rec = w.units.filter(u => u.squad && !u.dead && !before.has(u.id));
+  check('spread: new recruits stand apart', rec.length === 6 && minGap(rec) >= 0.8, `${rec.length} recruits, closest ${minGap(rec).toFixed(2)}`);
+  const pile = rec.slice(0, 5);
+  for (const u of pile) { u.x = c.cx + 10.5; u.y = c.cy + 10.5; u.dx = u.x; u.dy = u.y; u.path = null; u.arrived = true; }
+  run(w, 100);
+  check('spread: a stacked group separates', minGap(pile) >= 0.7, `closest ${minGap(pile).toFixed(2)}`);
+}
+
 // 5. Waves: undefended region is destroyed; save/load mid-wave is deterministic
 {
   const w = newWorld(15); const c = starterTown(w);

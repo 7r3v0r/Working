@@ -497,7 +497,7 @@ export class World {
       else if (u.k === 'cart') Log.updateCart(this, u);
       else Mil.updateSoldier(this, u);
     }
-    if (this.tick % 2 === 0) Zom.separate(this);
+    if (this.tick % 2 === 0) { Zom.separate(this); Mil.separateSoldiers(this); }
     this.updateBuildings();
     Mil.updateSquads(this);
     Log.updateLogistics(this);

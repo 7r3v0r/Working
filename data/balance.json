@@ -32,5 +32,5 @@
   "skirmish": { "packInterval": 360, "packStartDay": 2, "packMin": 5, "packMax": 30, "spillMin": 5, "spillMax": 15, "spillStartDay": 3, "spillRange": 260, "nightMult": 2, "maxPacks": 6 },
   "dormant": { "wakeHuman": 12, "wakeBuilding": 30, "minSize": 5, "maxSize": 20, "minDistFromStart": 70 },
   "nest": { "defenderInterval": 1.5, "defenderCap": 40, "defendRadius": 24 },
-  "soldier": { "engage": 7, "amoveEngage": 9, "leash": 9 }
+  "soldier": { "engage": 7, "amoveEngage": 9, "leash": 9, "separation": 0.9 }
 }

@@ -392,8 +392,52 @@ export function updateBarracks(w, b) {
   b.training = null; b.queue.shift();
   const t = w.passableNear(w.tileOf(b.x + b.w / 2, b.y + b.h), w.hSpeed, 4);
   const x = t >= 0 ? t % w.W + 0.5 : b.x + b.w / 2, y = t >= 0 ? ((t / w.W) | 0) + 0.5 : b.y + b.h + 0.5;
-  const u = w.spawn(k, x, y, { city: city.id, dx: x, dy: y });
+  const [rx, ry] = rallySlot(w, x, y + 1.5);
+  const u = w.spawn(k, x, y, { city: city.id, dx: rx, dy: ry });
+  u.needPath = rx !== x || ry !== y;
   addToSquad(w, u, defaultSquad(w, city.id));
+}
+
+// New recruits walk to the nearest open spot below the barracks instead of piling onto the exit.
+function rallySlot(w, x, y) {
+  const slots = formation(49, x, y + 3, 1.3).sort((a, b) => Math.hypot(a[0] - x, a[1] - y) - Math.hypot(b[0] - x, b[1] - y));
+  const sol = w.units.filter(u => !u.dead && !u.isZ && !u.inside && u.squad);
+  for (const [sx, sy] of slots) {
+    if (!w.inMap(sx, sy) || w.hSpeed[w.tileOf(sx, sy)] <= 0) continue;
+    if (sol.some(u => Math.hypot(u.x - sx, u.y - sy) < 0.9 || Math.hypot(u.dx - sx, u.dy - sy) < 0.9)) continue;
+    return [sx, sy];
+  }
+  return [x, y];
+}
+
+// Idle soldiers standing on top of each other drift apart (and keep the new spot as their post).
+export function separateSoldiers(w) {
+  const S = w.spatial, r = w.B.soldier.separation, r2 = r * r, U = w.units;
+  for (let i = 0; i < U.length; i++) {
+    const u = U[i];
+    if (u.dead || u.isZ || u.inside || !u.squad || !u.arrived || u.path || u.tgt || u.garrisonB) continue;
+    const cx = (u.x / S.cs) | 0, cy = (u.y / S.cs) | 0;
+    let px = 0, py = 0, n = 0;
+    for (let yy = cy - 1; yy <= cy + 1; yy++) for (let xx = cx - 1; xx <= cx + 1; xx++) {
+      if (xx < 0 || yy < 0 || xx >= S.cw || yy >= S.ch) continue;
+      for (let j = S.head[yy * S.cw + xx]; j >= 0; j = S.next[j]) {
+        const o = S.units[j];
+        if (o === u || o.dead || o.isZ || !o.squad) continue;
+        const dx = u.x - o.x, dy = u.y - o.y, d2 = dx * dx + dy * dy;
+        if (d2 >= r2) continue;
+        n++;
+        if (d2 < 1e-6) { const a = (u.id * 2.39996) % 6.2832; px += Math.cos(a) * 0.1; py += Math.sin(a) * 0.1; continue; }
+        const d = Math.sqrt(d2), k = (r - d) / d * 0.25;
+        px += dx * k; py += dy * k;
+      }
+    }
+    if (!n) continue;
+    const nx = u.x + px, ny = u.y + py;
+    if (!w.inMap(nx, ny)) continue;
+    const nt = w.tileOf(nx, ny);
+    if (nt !== w.tileOf(u.x, u.y) && !w.canEnter(nt, false)) continue;
+    u.x = nx; u.y = ny; u.dx = nx; u.dy = ny;
+  }
 }
 
 export function cmdTrain(w, c) {
