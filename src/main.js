@@ -3,6 +3,9 @@ import { World } from './sim/world.js';
 import { serialize, deserialize } from './sim/save.js';
 import { Renderer, Minimap } from './render/renderer.js';
 import { UI } from './ui/ui.js';
+import * as Store from './ui/storage.js';
+
+const AUTOSAVE_TICKS = 1200; // every 2 in-game minutes
 
 async function loadDefs() {
   const get = n => fetch(`data/${n}.json`).then(r => { if (!r.ok) throw new Error(`data/${n}.json: ${r.status}`); return r.json(); });
@@ -18,6 +21,7 @@ const game = {
     this.world = w; this.map = w.map;
     this.renderer.setWorld(w);
     this.renderer.resize(); this.renderer.clampCam();
+    this.autoTick = w.tick;
     if (this.ui) this.ui.reset();
     this.minimap && this.minimap.draw(true);
     window.world = w; // handy for debugging from the console
@@ -27,7 +31,12 @@ const game = {
     w.newGame(seed ?? ((Date.now() % 1e9) | 0));
     this.setWorld(w);
   },
-  save() {
+  saveMeta(auto) {
+    const w = this.world, cap = w.cityMap.get(w.capital);
+    return { id: auto ? 'auto' : 'm' + Date.now(), auto, name: auto ? 'Autosave' : `${cap ? cap.name : 'Game'} · day ${w.day()}`, day: w.day(), cities: w.cities.length };
+  },
+  // Manual save: browser slot plus a downloaded copy in case browser storage is cleared.
+  async save() {
     const json = serialize(this.world);
     const blob = new Blob([json], { type: 'application/json' });
     const a = document.createElement('a');
@@ -35,7 +44,16 @@ const game = {
     a.download = `squares-of-the-dead-day${this.world.day()}.json`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-    this.ui.flash('Game saved to file');
+    try { await Store.putSave(this.saveMeta(false), json); this.ui.flash('Saved in the browser and downloaded a copy'); }
+    catch (e) { this.ui.flash(`Browser save failed (${e.message}); the downloaded file is your save`); }
+  },
+  async autosave() {
+    const w = this.world;
+    if (!w || w.status.state !== 'playing' || this.saving) return;
+    this.autoTick = w.tick;
+    this.saving = true;
+    try { await Store.putSave(this.saveMeta(true), serialize(w)); } catch (e) { console.warn('Autosave failed', e); }
+    this.saving = false;
   },
   load(json) {
     const w = deserialize(this.defs, json, this.map);
@@ -43,6 +61,7 @@ const game = {
     this.paused = true;
     this.ui.flash(`Loaded day ${w.day()} — paused`);
   },
+  async loadSlot(id) { this.load(await Store.getSave(id)); },
 };
 
 async function main() {
@@ -87,6 +106,7 @@ async function main() {
       while (acc >= STEP && n < 16) { w.step(); acc -= STEP; n++; }
       if (n >= 16) acc = 0;
     }
+    if (w.tick - game.autoTick >= AUTOSAVE_TICKS) game.autosave();
     const alpha = game.paused ? 1 : Math.min(1, acc / STEP);
     game.ui.update(dt);
     game.renderer.render(alpha, game.ui.view);
@@ -96,5 +116,6 @@ async function main() {
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && game.world.tick > game.autoTick) game.autosave(); });
 }
 main();

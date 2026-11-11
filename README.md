@@ -16,6 +16,8 @@ npx serve .          # or: python3 -m http.server 8000
 
 Open the printed URL. The page fetches `data/*.json`, so it must be served over HTTP; opening `index.html` from disk does not work.
 
+**Saving:** Save stores the game in your browser and also downloads a `.json` copy. The game also autosaves to the browser every 2 in-game minutes and when you leave the page. Load lists the browser saves (Continue on the start screen picks the newest) and can still load a downloaded file if browser data was cleared. Browser saves are per browser and computer; up to 10 manual saves are kept.
+
 URL options: `?seed=123` fixes the new-game seed, and `?nohelp` skips the start dialog.
 
 ## Test

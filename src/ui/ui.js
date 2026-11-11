@@ -7,6 +7,7 @@ import { TER_NAMES, DEP_NAMES } from '../sim/map.js';
 import { play, unlockAudio } from './audio.js';
 import { resIcon, costHtml } from './icons.js';
 import { buildingArt } from './buildingArt.js';
+import { listSaves, deleteSave, storageAvailable, MAX_MANUAL } from './storage.js';
 
 const $ = id => document.getElementById(id);
 const fmt = v => Math.floor(v + 1e-6).toLocaleString();
@@ -106,7 +107,7 @@ export class UI {
     document.addEventListener('input', e => this.onInput(e));
     document.addEventListener('pointerdown', () => unlockAudio(), { once: false });
     $('save-btn').onclick = () => this.g.save();
-    $('load-btn').onclick = () => $('load-file').click();
+    $('load-btn').onclick = () => this.loadDialog();
     $('load-file').onchange = e => {
       const f = e.target.files[0]; if (!f) return;
       f.text().then(txt => { try { this.g.load(txt); this.closeOverlay(); } catch (err) { this.dialog(`<h1>Load failed</h1><p>${esc(err.message)}</p><div class="actions"><button data-act="close-ov">OK</button></div>`); } });
@@ -404,8 +405,16 @@ export class UI {
       case 'pick-city': this.city = +ds.id; this.lastHtml = {}; break;
       case 'close': this.togglePanel(this.panel); break;
       case 'close-ov': this.closeOverlay(); break;
+      case 'load-file': $('load-file').click(); break;
+      case 'continue': case 'load-slot': {
+        const id = a === 'continue' ? (listSaves()[0] || {}).id : ds.id;
+        if (!id) break;
+        this.g.loadSlot(id).then(() => this.closeOverlay(), err => this.dialog(`<h1>Load failed</h1><p>${esc(err.message)}</p><div class="actions"><button data-act="close-ov">OK</button></div>`));
+        break;
+      }
+      case 'del-slot': if (confirm('Delete this save from the browser?')) { deleteSave(ds.id); this.loadDialog(); } break;
       case 'newgame': this.closeOverlay(); this.g.newGame(); break;
-      case 'load': $('load-file').click(); break;
+      case 'load': this.loadDialog(); break;
     }
   }
   onInput(e) {
@@ -438,6 +447,16 @@ export class UI {
 
   dialog(html) { const o = $('overlay'); o.innerHTML = `<div class="dialog">${html}</div>`; o.hidden = false; }
   closeOverlay() { $('overlay').hidden = true; }
+  loadDialog() {
+    const saves = listSaves(), ok = storageAvailable();
+    const when = t => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    const rows = saves.map(s => `<tr><td><b>${esc(s.name)}</b>${s.auto ? ' <span class="muted">(automatic)</span>' : ''}<div class="muted">Day ${s.day} · ${when(s.time)} · ${Math.max(1, Math.round(s.size / 1024))} KB</div></td>` +
+      `<td class="n"><button data-act="load-slot" data-id="${esc(s.id)}">Load</button> <button data-act="del-slot" data-id="${esc(s.id)}" title="Delete">✕</button></td></tr>`).join('');
+    this.dialog(`<h1>Load game</h1>
+${!ok ? '<p class="warn">This browser is blocking site storage, so only save files work here.</p>' : saves.length ? `<table class="saves">${rows}</table>` : '<p class="muted">No saves in this browser yet.</p>'}
+<p class="muted">Browser saves stay in this browser on this computer. Save also downloads a copy; use <b>Load from file</b> if browser data was cleared. The autosave runs every 2 in-game minutes and when you leave the page; up to ${MAX_MANUAL} manual saves are kept.</p>
+<div class="actions"><button data-act="load-file">Load from file…</button><button data-act="close-ov">Cancel</button></div>`);
+  }
   showHelp() {
     const UD = this.w.UD;
     const sw = c => `<i class="sw" style="background:${c}"></i>`;
@@ -466,7 +485,7 @@ export class UI {
 <kbd>Esc</kbd><span>Cancel / deselect</span>
 </div>
 <p class="muted">Tips: build farms and houses first; set job priorities in the City panel; found settlements (Settlement tab) to reach stone, ore and coal, or camps to build further out in your own region; link cities with roads and cart routes; research stone walls before the waves grow.</p>
-<div class="actions"><button data-act="close-ov">Play</button><button data-act="newgame">New game</button><button data-act="load">Load save…</button></div>`);
+<div class="actions">${listSaves().length ? `<button data-act="continue">Continue (${esc(listSaves()[0].name)})</button>` : ''}<button data-act="close-ov">Play</button><button data-act="newgame">New game</button><button data-act="load">Load save…</button></div>`);
   }
 
   pushAlert(e) {
